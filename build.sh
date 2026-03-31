@@ -1,1 +1,1 @@
-pyinstaller --noconsole --onefile launcher.py
+pyinstaller --icon="assets/icon.png" --add-data "assets:assets" --hidden-import=PIL._tkinter_finder --noconsole --onefile launcher.py

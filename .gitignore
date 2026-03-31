@@ -3,6 +3,10 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+launcher.exe
+launcher
+melodi_launcher.log
+
 # C extensions
 *.so
 

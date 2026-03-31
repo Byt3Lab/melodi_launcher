@@ -6,5 +6,6 @@ source venv/bin/activate
 
 pip install pyinstaller
 pip install customtkinter
+pip install Pillow
 
 pip freeze > requirements.txt

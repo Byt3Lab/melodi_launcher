@@ -3,19 +3,43 @@ import subprocess
 import threading
 import sys
 import os
+import webbrowser
+import shutil
+from PIL import Image, ImageTk
 from tkinter import messagebox
 
 # Configuration globale
 ctk.set_appearance_mode("Dark")  # Modes: "System", "Dark", "Light"
 ctk.set_default_color_theme("blue")  # Themes: "blue", "green", "dark-blue"
 
+import sys
+
+def resource_path(relative_path):
+    """ Retourne le chemin absolu vers la ressource, compatible dev et PyInstaller """
+    try:
+        # PyInstaller crée un dossier temporaire _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+
+    return os.path.join(base_path, relative_path)
+
 class MelodiLauncher(ctk.CTk):
     def __init__(self):
         super().__init__()
 
         self.title("MELODI ERP - Panneau de Contrôle")
-        self.geometry("450x250")
+        self.geometry("450x300")
         self.resizable(False, False)
+        
+        # Icône de la fenêtre
+        icon_path = resource_path("assets/icon.png")
+        print(icon_path)
+        
+        if os.path.exists(icon_path):
+            icon_image = Image.open(icon_path)
+            self._icon_photo = ImageTk.PhotoImage(icon_image)
+            self.iconphoto(True, self._icon_photo)
         
         self.erp_process = None
         self.is_running = False
@@ -27,13 +51,25 @@ class MelodiLauncher(ctk.CTk):
         self.setup_ui()
 
     def setup_ui(self):
+        # En-tête avec icône + titre
+        self.header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.header_frame.pack(pady=(25, 10))
+
+        # Icône à côté du nom
+        icon_path = resource_path("assets/icon.png")
+        if os.path.exists(icon_path):
+            icon_img = Image.open(icon_path).resize((36, 36), Image.LANCZOS)
+            self._header_icon = ctk.CTkImage(light_image=icon_img, dark_image=icon_img, size=(36, 36))
+            self.icon_label = ctk.CTkLabel(self.header_frame, image=self._header_icon, text="")
+            self.icon_label.pack(side="left", padx=(0, 10))
+
         # Titre principal
         self.title_label = ctk.CTkLabel(
-            self, 
+            self.header_frame, 
             text="MELODI ERP", 
             font=ctk.CTkFont(size=28, weight="bold")
         )
-        self.title_label.pack(pady=(25, 10))
+        self.title_label.pack(side="left")
 
         # Zone Statut
         self.status_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -70,7 +106,19 @@ class MelodiLauncher(ctk.CTk):
             height=50,
             width=250
         )
-        self.action_button.pack(pady=(20, 0))
+        self.action_button.pack(pady=(20, 10))
+        
+        # Bouton Navigateur (caché par défaut)
+        self.browser_button = ctk.CTkButton(
+            self,
+            text="Ouvrir dans le navigateur",
+            command=self.open_browser,
+            fg_color="#007bff",
+            hover_color="#0056b3",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            height=40,
+            width=250
+        )
 
     def update_ui_state(self, is_running):
         """Met à jour l'interface en fonction de l'état du processus."""
@@ -83,6 +131,7 @@ class MelodiLauncher(ctk.CTk):
             )
             self.status_indicator.configure(fg_color="#28a745") # Indicateur vert
             self.status_label.configure(text="Statut : En cours")
+            self.browser_button.pack(pady=(0, 10))
         else:
             self.action_button.configure(
                 text="Démarrer MELODI", 
@@ -92,6 +141,11 @@ class MelodiLauncher(ctk.CTk):
             self.status_indicator.configure(fg_color="gray") # Indicateur gris
             self.status_label.configure(text="Statut : Éteint")
             self.action_button.configure(state="normal") # Réactiver le bouton en cas de crash
+            self.browser_button.pack_forget()
+
+    def open_browser(self):
+        """Ouvre le navigateur à l'adresse de l'application."""
+        webbrowser.open("http://127.0.0.1:5000")
 
     def toggle_erp(self):
         """Démarre ou arrête l'ERP selon l'état actuel."""
@@ -113,8 +167,23 @@ class MelodiLauncher(ctk.CTk):
     def _run_erp_process(self):
         """Méthode threadée pour gérer le sous-processus."""
         try:
-            python_exec = sys.executable 
-            script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "main.py")
+            if getattr(sys, 'frozen', False):
+                base_dir = os.path.dirname(sys.executable)
+            else:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            cwd_path = base_dir
+            
+            # Construire la commande avec activation du venv
+            venv_activate = os.path.join(base_dir, "venv", "bin", "activate")
+            if os.path.exists(venv_activate):
+                cmd = ["bash", "-c", f"source {venv_activate} && python main.py"]
+            else:
+                # Pas de venv, fallback direct
+                python_exec = sys.executable if not getattr(sys, 'frozen', False) else (shutil.which("python3") or shutil.which("python"))
+                if python_exec is None:
+                    raise RuntimeError("Aucun interpréteur Python trouvé.\nPlacez un venv/ à côté de l'exécutable ou installez Python 3.")
+                cmd = [python_exec, os.path.join(base_dir, "main.py")]
             
             # On écrit les logs dans un fichier pour éviter que le pipe stdout/stderr bloque l'application
             log_handle = open("melodi_launcher.log", "a")
@@ -122,8 +191,8 @@ class MelodiLauncher(ctk.CTk):
             log_handle.flush()
 
             self.erp_process = subprocess.Popen(
-                [python_exec, script_path],
-                cwd=os.path.dirname(os.path.abspath(__file__)),
+                cmd,
+                cwd=cwd_path,
                 stdout=log_handle,
                 stderr=subprocess.STDOUT
             )
