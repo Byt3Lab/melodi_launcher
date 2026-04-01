@@ -3,6 +3,7 @@ import subprocess
 import threading
 import sys
 import os
+import platform
 import webbrowser
 import shutil
 from PIL import Image, ImageTk
@@ -145,7 +146,10 @@ class MelodiLauncher(ctk.CTk):
 
     def open_browser(self):
         """Ouvre le navigateur à l'adresse de l'application."""
-        webbrowser.open("http://127.0.0.1:5000")
+        port = 8080 
+        if self._is_dev_mode():
+            port = 5000
+        webbrowser.open(f"http://127.0.0.1:{port}")
 
     def toggle_erp(self):
         """Démarre ou arrête l'ERP selon l'état actuel."""
@@ -167,27 +171,36 @@ class MelodiLauncher(ctk.CTk):
     def _run_erp_process(self):
         """Méthode threadée pour gérer le sous-processus."""
         try:
-            if getattr(sys, 'frozen', False):
-                base_dir = os.path.dirname(sys.executable)
-            else:
-                base_dir = os.path.dirname(os.path.abspath(__file__))
-            
+            base_dir = self._get_base_dir()
             cwd_path = base_dir
             
-            # Construire la commande avec activation du venv
-            venv_activate = os.path.join(base_dir, "venv", "bin", "activate")
-            if os.path.exists(venv_activate):
-                cmd = ["bash", "-c", f"source {venv_activate} && python main.py"]
+            # Détection du système d'exploitation
+            current_os = platform.system()
+            prefix_script_name = "prod"
+            
+            if self._is_dev_mode():
+                prefix_script_name = "dev"
+
+            # Mode PROD : lancer le script prod.bat ou prod.sh
+            if current_os == "Windows":
+                script_name = prefix_script_name + ".bat"
+                script_path = os.path.join(base_dir, script_name)
+                if not os.path.exists(script_path):
+                    raise FileNotFoundError(f"Le fichier '{script_name}' est introuvable dans :\n{base_dir}")
+                cmd = [script_path]
             else:
-                # Pas de venv, fallback direct
-                python_exec = sys.executable if not getattr(sys, 'frozen', False) else (shutil.which("python3") or shutil.which("python"))
-                if python_exec is None:
-                    raise RuntimeError("Aucun interpréteur Python trouvé.\nPlacez un venv/ à côté de l'exécutable ou installez Python 3.")
-                cmd = [python_exec, os.path.join(base_dir, "main.py")]
+                # Linux / macOS
+                script_name = prefix_script_name + ".sh"
+                script_path = os.path.join(base_dir, script_name)
+                if not os.path.exists(script_path):
+                    raise FileNotFoundError(f"Le fichier '{script_name}' est introuvable dans :\n{base_dir}")
+                # S'assurer que le script est exécutable
+                os.chmod(script_path, 0o755)
+                cmd = ["bash", script_path]
             
             # On écrit les logs dans un fichier pour éviter que le pipe stdout/stderr bloque l'application
-            log_handle = open("melodi_launcher.log", "a")
-            log_handle.write("=== Démarrage de MELODI ===\n")
+            log_handle = open(os.path.join(base_dir, "melodi_launcher.log"), "a")
+            log_handle.write(f"=== Démarrage de MELODI ({current_os} - {script_name}) ===\n")
             log_handle.flush()
 
             self.erp_process = subprocess.Popen(
@@ -214,7 +227,7 @@ class MelodiLauncher(ctk.CTk):
         except Exception as e:
             self.after(0, self.update_ui_state, False)
             print(f"Erreur lors du lancement : {e}")
-            self.after(0, lambda: messagebox.showerror("Erreur de lancement", f"Impossible de démarrer MELODI:\n{e}"))
+            # self.after(0, lambda: messagebox.showerror("Erreur de lancement", f"Impossible de démarrer MELODI:\n{e}"))
 
     def stop_erp(self):
         """Arrête l'application MELODI et tue le processus."""
@@ -238,6 +251,19 @@ class MelodiLauncher(ctk.CTk):
                 self.after(500, self.destroy)
         else:
             self.destroy()
+
+    def _get_base_dir(self):
+        """Retourne le chemin de base de l'application."""
+        if getattr(sys, 'frozen', False):
+            return os.path.dirname(sys.executable)
+        else:
+            return os.path.dirname(os.path.abspath(__file__))
+
+    def _is_dev_mode(self):
+        """Vérifie si le mode DEV est activé."""
+        base_dir = self._get_base_dir()
+        dev_mode_flag = os.path.join(base_dir, "launcher_dev_mode.txt")
+        return os.path.exists(dev_mode_flag)
 
 if __name__ == "__main__":
     app = MelodiLauncher()

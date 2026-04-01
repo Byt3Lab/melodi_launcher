@@ -6,6 +6,7 @@ __pycache__/
 launcher.exe
 launcher
 melodi_launcher.log
+launcher_dev_mode.txt
 
 # C extensions
 *.so
