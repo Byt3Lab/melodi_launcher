@@ -38,7 +38,7 @@ class MelodiInstaller(BaseInstaller):
             return
 
         task.update(30, "Préparation du répertoire de déploiement /opt/melodi...")
-        code, _, stderr = await executor.run("sudo mkdir -p /opt/melodi && sudo chmod 755 /opt/melodi")
+        code, _, stderr = await executor.run_sudo("mkdir -p /opt/melodi && chmod 755 /opt/melodi")
         if code != 0:
             task.fail(f"Erreur création répertoire: {stderr}")
             return
@@ -51,14 +51,14 @@ class MelodiInstaller(BaseInstaller):
 
         task.update(75, "Configuration du fichier de service systemd /etc/systemd/system/melodi.service...")
         escaped_unit = SYSTEMD_UNIT_TEMPLATE.replace('"', '\\"')
-        cmd = f'echo "{escaped_unit}" | sudo tee /etc/systemd/system/melodi.service > /dev/null'
-        code, _, stderr = await executor.run(cmd)
+        cmd = f'echo "{escaped_unit}" | tee /etc/systemd/system/melodi.service > /dev/null'
+        code, _, stderr = await executor.run_sudo(cmd)
         if code != 0:
             task.fail(f"Erreur écriture fichier systemd: {stderr}")
             return
 
         task.update(90, "Rechargement du démon systemd (systemctl daemon-reload)...")
-        code, _, stderr = await executor.run("sudo systemctl daemon-reload && sudo systemctl enable melodi")
+        code, _, stderr = await executor.run_sudo("systemctl daemon-reload && systemctl enable melodi")
         if code != 0:
             task.fail(f"Erreur activation du service systemd: {stderr}")
             return

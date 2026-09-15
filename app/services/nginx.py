@@ -35,7 +35,7 @@ class NginxService(BaseService):
 
     async def test_config(self, executor: Executor) -> Dict[str, Any]:
         """Exécute 'nginx -t' pour valider les fichiers de configuration avant reload."""
-        code, stdout, stderr = await executor.run("sudo nginx -t")
+        code, stdout, stderr = await executor.run_sudo("nginx -t")
         return {
             "success": code == 0,
             "output": stdout + stderr,

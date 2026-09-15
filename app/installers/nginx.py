@@ -25,7 +25,7 @@ class NginxInstaller(BaseInstaller):
             return
 
         task.update(70, "Test de la configuration Nginx (nginx -t)...")
-        code, stdout, stderr = await executor.run("sudo nginx -t")
+        code, stdout, stderr = await executor.run_sudo("nginx -t")
         if code != 0:
             task.fail(f"Configuration Nginx invalide: {stderr}")
             return

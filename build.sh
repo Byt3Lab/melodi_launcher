@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script de compilation de MELODI Launcher en exécutable standalone Linux avec PyInstaller
+# Script de compilation de MELODI Launcher en exécutable standalone Linux (Interface Tkinter + Serveur Web)
 
 echo "=== Compilation de MELODI Control Center ==="
 
@@ -14,7 +14,7 @@ mkdir -p config
 # Nettoyage des précédents builds
 rm -rf build dist
 
-# Compilation PyInstaller
+# Compilation PyInstaller avec point d'entrée Tkinter GUI
 pyinstaller \
     --name "launcher" \
     --onefile \
@@ -25,6 +25,10 @@ pyinstaller \
     --hidden-import=hypercorn \
     --hidden-import=hypercorn.asyncio \
     --hidden-import=jinja2 \
-    run.py
+    --hidden-import=tkinter \
+    gui_launcher.py
+
+# Ajouter les droits d'exécution
+chmod +x dist/launcher 2>/dev/null || true
 
 echo "=== Compilation terminée ! Exécutable disponible dans dist/launcher ==="

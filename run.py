@@ -32,6 +32,12 @@ def main():
         asyncio.run(serve(app, config))
     except (KeyboardInterrupt, SystemExit):
         print("\n[MELODI Launcher] Extinction demandée.")
+    except OSError as e:
+        if getattr(e, "errno", None) == 98 or "already in use" in str(e).lower() or "address already in use" in str(e).lower():
+            print(f"\n❌ Erreur : Le port {port} est déjà utilisé par un autre processus.")
+            print(f"👉 Fermez le serveur existant tournant sur http://{host}:{port} ou modifiez le port dans config/config.json.")
+        else:
+            print(f"\n❌ Erreur serveur : {e}")
 
 if __name__ == "__main__":
     main()

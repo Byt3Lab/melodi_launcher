@@ -14,12 +14,12 @@ class PackageManager:
 
     @staticmethod
     async def install(executor: Executor, package_name: str) -> Dict[str, Any]:
-        """Installe un paquet via apt-get."""
-        cmd = f"sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq {package_name}"
-        code, stdout, stderr = await executor.run(cmd, timeout=300.0)
+        """Installe un paquet via apt-get avec gestion sécurisée des privilèges sudo."""
+        cmd = f"DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq {package_name}"
+        code, stdout, stderr = await executor.run_sudo(cmd, timeout=300.0)
         return {
             "success": code == 0,
             "stdout": stdout,
             "stderr": stderr,
-            "message": f"Paquet '{package_name}' installé avec succès." if code == 0 else f"Échec d'installation de '{package_name}'."
+            "message": f"Paquet '{package_name}' installé avec succès." if code == 0 else f"Échec d'installation de '{package_name}': {stderr.strip()}"
         }

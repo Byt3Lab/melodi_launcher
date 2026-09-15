@@ -20,8 +20,8 @@ class SystemdManager:
 
     @staticmethod
     async def start(executor: Executor, service_name: str) -> Dict[str, Any]:
-        """Démarrer un service systemd."""
-        code, stdout, stderr = await executor.run(f"sudo systemctl start {service_name}")
+        """Démarrer un service systemd via run_sudo."""
+        code, stdout, stderr = await executor.run_sudo(f"systemctl start {service_name}")
         return {
             "success": code == 0,
             "message": f"Service '{service_name}' démarré." if code == 0 else f"Échec au démarrage de '{service_name}': {stderr.strip()}"
@@ -29,8 +29,8 @@ class SystemdManager:
 
     @staticmethod
     async def stop(executor: Executor, service_name: str) -> Dict[str, Any]:
-        """Arrêter un service systemd."""
-        code, stdout, stderr = await executor.run(f"sudo systemctl stop {service_name}")
+        """Arrêter un service systemd via run_sudo."""
+        code, stdout, stderr = await executor.run_sudo(f"systemctl stop {service_name}")
         return {
             "success": code == 0,
             "message": f"Service '{service_name}' arrêté." if code == 0 else f"Échec de l'arrêt de '{service_name}': {stderr.strip()}"
@@ -38,8 +38,8 @@ class SystemdManager:
 
     @staticmethod
     async def restart(executor: Executor, service_name: str) -> Dict[str, Any]:
-        """Redémarrer un service systemd."""
-        code, stdout, stderr = await executor.run(f"sudo systemctl restart {service_name}")
+        """Redémarrer un service systemd via run_sudo."""
+        code, stdout, stderr = await executor.run_sudo(f"systemctl restart {service_name}")
         return {
             "success": code == 0,
             "message": f"Service '{service_name}' redémarré." if code == 0 else f"Échec du redémarrage de '{service_name}': {stderr.strip()}"
