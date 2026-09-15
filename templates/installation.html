@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}Installations - MELODI Control Center{% endblock %}
+{% block header_title %}Assistant d'Installation & Déploiement{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-8" x-data="installationComponent()">
+
+    <div class="flex items-center justify-between">
+        <div>
+            <h3 class="text-xl font-bold text-white">Installation des Composants</h3>
+            <p class="text-sm text-slate-400">Déployez les briques et services logiciels sur le serveur sélectionné.</p>
+        </div>
+    </div>
+
+    <!-- Active Task Progress Bar (If Any Task is Running) -->
+    <template x-if="activeTask">
+        <div class="bg-slate-950 p-6 rounded-2xl border border-emerald-500/40 shadow-xl space-y-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h4 class="font-bold text-slate-100 text-base" x-text="activeTask.name"></h4>
+                    <p class="text-xs text-slate-400" x-text="activeTask.current_step"></p>
+                </div>
+
+                <span class="text-xs px-3 py-1 rounded-full font-mono font-bold"
+                      :class="{
+                          'bg-amber-500/10 text-amber-400 border border-amber-500/30': activeTask.status === 'RUNNING',
+                          'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30': activeTask.status === 'SUCCESS',
+                          'bg-rose-500/10 text-rose-400 border border-rose-500/30': activeTask.status === 'FAILED'
+                      }"
+                      x-text="activeTask.status + ' (' + activeTask.progress + '%)'"></span>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="w-full bg-slate-900 rounded-full h-3 overflow-hidden border border-slate-800">
+                <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-3 transition-all duration-300 rounded-full"
+                     :style="'width: ' + activeTask.progress + '%'"></div>
+            </div>
+
+            <!-- Task Log Terminal Output -->
+            <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 font-mono text-xs text-slate-300 max-h-48 overflow-y-auto space-y-1">
+                <template x-for="(line, idx) in activeTask.logs" :key="idx">
+                    <p x-text="line"></p>
+                </template>
+            </div>
+        </div>
+    </template>
+
+    <!-- Available Software Installers Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- MELODI ERP Installer -->
+        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
+            <div class="space-y-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-bold text-slate-950 shadow-lg">
+                        M
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-100 text-lg">MELODI ERP</h4>
+                        <span class="text-xs text-slate-400">Application ERP Principale</span>
+                    </div>
+                </div>
+
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Déploie l'application MELODI ERP dans <code class="text-emerald-400">/opt/melodi</code> avec son environnement virtuel Python et génère l'unité systemd <code class="text-emerald-400">melodi.service</code>.
+                </p>
+            </div>
+
+            <button @click="triggerInstall('melodi')" 
+                    :disabled="activeTask && activeTask.status === 'RUNNING'"
+                    class="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
+                <span>Installer MELODI ERP</span>
+            </button>
+        </div>
+
+        <!-- PostgreSQL Database Installer -->
+        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
+            <div class="space-y-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+                        PG
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-100 text-lg">PostgreSQL</h4>
+                        <span class="text-xs text-slate-400">Base de données Relationnelle</span>
+                    </div>
+                </div>
+
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Installe les paquets système <code class="text-indigo-400">postgresql postgresql-contrib</code> via apt et active le service au démarrage.
+                </p>
+            </div>
+
+            <button @click="triggerInstall('postgresql')" 
+                    :disabled="activeTask && activeTask.status === 'RUNNING'"
+                    class="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
+                <span>Installer PostgreSQL</span>
+            </button>
+        </div>
+
+        <!-- Redis Server Installer -->
+        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
+            <div class="space-y-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center font-bold">
+                        RD
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-100 text-lg">Redis Server</h4>
+                        <span class="text-xs text-slate-400">Cache & Message Broker</span>
+                    </div>
+                </div>
+
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Installe le paquet apt <code class="text-rose-400">redis-server</code> et démarre le serveur de cache mémoire.
+                </p>
+            </div>
+
+            <button @click="triggerInstall('redis')" 
+                    :disabled="activeTask && activeTask.status === 'RUNNING'"
+                    class="w-full py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
+                <span>Installer Redis</span>
+            </button>
+        </div>
+
+        <!-- Nginx Web Server Installer -->
+        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
+            <div class="space-y-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center font-bold">
+                        NG
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-100 text-lg">Nginx Web Server</h4>
+                        <span class="text-xs text-slate-400">Proxy Inverse HTTP</span>
+                    </div>
+                </div>
+
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Installe le paquet apt <code class="text-teal-400">nginx</code>, valide la configuration initiale et active le service systemd.
+                </p>
+            </div>
+
+            <button @click="triggerInstall('nginx')" 
+                    :disabled="activeTask && activeTask.status === 'RUNNING'"
+                    class="w-full py-3 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
+                <span>Installer Nginx</span>
+            </button>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    function installationComponent() {
+        return {
+            activeTask: null,
+            activeTaskId: null,
+            timer: null,
+
+            triggerInstall(installerName) {
+                const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
+                if (!confirm(`Confirmer le lancement de l'installation de ${installerName} sur le serveur courant ?`)) return;
+
+                fetch(`/api/servers/${activeServerId}/installers/${installerName}/install`, { method: 'POST' })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            this.activeTaskId = data.task_id;
+                            this.pollTask();
+                            if (this.timer) clearInterval(this.timer);
+                            this.timer = setInterval(() => this.pollTask(), 1000);
+                        } else {
+                            alert(data.message);
+                        }
+                    })
+                    .catch(e => alert("Erreur au lancement de l'installation."));
+            },
+
+            async pollTask() {
+                if (!this.activeTaskId) return;
+                try {
+                    const res = await fetch(`/api/tasks/${this.activeTaskId}`);
+                    const data = await res.json();
+                    if (data.success) {
+                        this.activeTask = data.task;
+                        if (this.activeTask.status === 'SUCCESS' || this.activeTask.status === 'FAILED') {
+                            if (this.timer) clearInterval(this.timer);
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
+    }
+</script>
+{% endblock %}

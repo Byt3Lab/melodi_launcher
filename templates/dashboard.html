@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - MELODI Control Center{% endblock %}
+{% block header_title %}Vue d'ensemble du Control Center{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-8" x-data="dashboardComponent()">
+
+    <!-- Welcome Banner -->
+    <div class="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-8 rounded-2xl border border-slate-800 shadow-xl flex items-center justify-between">
+        <div class="space-y-2">
+            <h3 class="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
+                <span x-text="serverName"></span>
+                <span class="text-xs px-3 py-1 rounded-full font-semibold border bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                    <span>● Connecté</span>
+                </span>
+            </h3>
+            <p class="text-slate-400 text-sm">Gestion centralisée des services et des ressources système.</p>
+        </div>
+
+        <a href="/installation" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shadow-lg transition-all">
+            <span>Nouvelle Installation</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+        </a>
+    </div>
+
+    <!-- Quick Metrics Summary -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-1">
+            <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">CPU</span>
+            <p class="text-2xl font-extrabold font-mono text-slate-100" x-text="(metrics.cpu_percent || 0) + '%'"></p>
+        </div>
+
+        <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-1">
+            <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">RAM</span>
+            <p class="text-2xl font-extrabold font-mono text-indigo-400" x-text="(metrics.ram_percent || 0) + '%'"></p>
+        </div>
+
+        <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-1">
+            <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Disque</span>
+            <p class="text-2xl font-extrabold font-mono text-teal-400" x-text="(metrics.disk_percent || 0) + '%'"></p>
+        </div>
+
+        <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-1">
+            <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Uptime</span>
+            <p class="text-2xl font-extrabold font-mono text-emerald-400 truncate" x-text="metrics.uptime_formatted || '-'"></p>
+        </div>
+    </div>
+
+    <!-- Managed Services Grid -->
+    <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-6">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+            <h4 class="font-bold text-slate-100 text-base">Services du Serveur</h4>
+            <a href="/services" class="text-xs text-emerald-400 hover:underline font-medium">Gérer tous les services &rarr;</a>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <template x-for="srv in services" :key="srv.name">
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800/80 flex items-center justify-between">
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <h5 class="font-bold text-slate-100 text-sm" x-text="srv.display_name"></h5>
+                            <span class="text-[10px] px-2 py-0.5 rounded font-semibold border"
+                                  :class="srv.is_running ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-500 border-slate-700'"
+                                  x-text="srv.is_running ? '● Running' : '○ Stopped'"></span>
+                        </div>
+                        <p class="text-xs text-slate-400" x-text="srv.description"></p>
+                    </div>
+
+                    <div class="flex gap-1.5">
+                        <template x-if="!srv.is_running">
+                            <button @click="controlService(srv.name, 'start')" class="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow">Démarrer</button>
+                        </template>
+
+                        <template x-if="srv.is_running">
+                            <div class="flex gap-1.5">
+                                <button @click="controlService(srv.name, 'stop')" class="py-1.5 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow">Arrêter</button>
+                                <button @click="controlService(srv.name, 'restart')" class="py-1.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shadow">Redémarrer</button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    function dashboardComponent() {
+        return {
+            serverName: 'Localhost',
+            metrics: {},
+            services: [],
+            init() {
+                this.loadDashboardData();
+                setInterval(() => this.loadDashboardData(), 2000);
+            },
+            async loadDashboardData() {
+                const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
+                try {
+                    const [resMetrics, resServices] = await Promise.all([
+                        fetch(`/api/servers/${activeServerId}/system`),
+                        fetch(`/api/servers/${activeServerId}/services`)
+                    ]);
+                    const dataMetrics = await resMetrics.json();
+                    const dataServices = await resServices.json();
+
+                    if (dataMetrics.success) this.metrics = dataMetrics.metrics;
+                    if (dataServices.success) this.services = dataServices.services;
+                } catch (e) {}
+            },
+            async controlService(name, action) {
+                const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
+                try {
+                    const res = await fetch(`/api/servers/${activeServerId}/services/${name}/${action}`, { method: 'POST' });
+                    const data = await res.json();
+                    alert(data.message);
+                    await this.loadDashboardData();
+                } catch (e) {
+                    alert("Erreur lors du contrôle du service.");
+                }
+            }
+        }
+    }
+</script>
+{% endblock %}

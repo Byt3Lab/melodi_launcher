@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Services - MELODI Control Center{% endblock %}
+{% block header_title %}Gestionnaire des Services Système{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-8" x-data="servicesComponent()">
+
+    <div class="flex items-center justify-between">
+        <div>
+            <h3 class="text-xl font-bold text-white">Services Administrés</h3>
+            <p class="text-sm text-slate-400">Contrôlez l'état des composants MELODI ERP, PostgreSQL, Redis, Nginx et Celery.</p>
+        </div>
+    </div>
+
+    <!-- Active Services Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <template x-for="service in services" :key="service.name">
+            <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5 flex flex-col justify-between">
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 text-emerald-400 flex items-center justify-center font-bold text-sm">
+                                <span x-text="service.name.substring(0, 2).toUpperCase()"></span>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-slate-100 text-lg" x-text="service.display_name"></h4>
+                                <span class="text-xs text-slate-400 font-mono" x-text="service.port ? 'Port: ' + service.port : 'Systemd Service'"></span>
+                            </div>
+                        </div>
+
+                        <span class="text-xs px-3 py-1 rounded-full font-semibold border"
+                              :class="service.is_running ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : (service.is_installed ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-rose-500/10 text-rose-400 border-rose-500/30')">
+                            <span x-text="service.status_text"></span>
+                        </span>
+                    </div>
+
+                    <p class="text-xs text-slate-400 leading-relaxed" x-text="service.description"></p>
+                </div>
+
+                <div class="flex gap-2 pt-2 border-t border-slate-800/60">
+                    <template x-if="!service.is_running">
+                        <button @click="controlService(service.name, 'start')" 
+                                class="flex-1 py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition-all">
+                            Démarrer
+                        </button>
+                    </template>
+
+                    <template x-if="service.is_running">
+                        <div class="flex gap-2 flex-1">
+                            <button @click="controlService(service.name, 'stop')" 
+                                    class="flex-1 py-2.5 px-4 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow transition-all">
+                                Arrêter
+                            </button>
+                            <button @click="controlService(service.name, 'restart')" 
+                                    class="flex-1 py-2.5 px-4 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shadow transition-all">
+                                Redémarrer
+                            </button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </div>
+</div>
+
+<script>
+    function servicesComponent() {
+        return {
+            services: [],
+            init() {
+                this.loadServices();
+                setInterval(() => this.loadServices(), 2000);
+            },
+            async loadServices() {
+                const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
+                try {
+                    const res = await fetch(`/api/servers/${activeServerId}/services`);
+                    const data = await res.json();
+                    if (data.success) {
+                        this.services = data.services;
+                    }
+                } catch (e) {}
+            },
+            async controlService(name, action) {
+                const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
+                try {
+                    const res = await fetch(`/api/servers/${activeServerId}/services/${name}/${action}`, { method: 'POST' });
+                    const data = await res.json();
+                    alert(data.message);
+                    await this.loadServices();
+                } catch (e) {
+                    alert("Erreur lors de la commande du service");
+                }
+            }
+        }
+    }
+</script>
+{% endblock %}

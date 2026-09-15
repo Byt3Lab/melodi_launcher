@@ -1,37 +1,60 @@
-# Guide pour les Agents IA (AGENTS.md) - MELODI Launcher
+# Guide pour les Agents IA (AGENTS.md) - MELODI Control Center
 
-Ce document a pour but de fournir le contexte, l'architecture et les règles essentielles concernant le projet **MELODI Launcher**. Il est destiné à guider tout agent IA intervenant sur le code de cette application.
+Ce document fournit le contexte, l'architecture et les règles essentielles concernant **MELODI Control Center**. Il guide tout agent IA intervenant sur cette base de code.
+
+---
 
 ## 📌 Contexte du Projet
-**MELODI Launcher** est une interface graphique (GUI) de panneau de contrôle conçue pour faciliter le démarrage, la surveillance et l'arrêt du serveur du logiciel **MELODI ERP**, sans avoir besoin de passer par la ligne de commande. 
-L'application est développée en **Python** et utilise exclusivement la bibliothèque standard **Tkinter** pour son interface graphique (suite à une migration visant à retirer la dépendance à `CustomTkinter`).
 
-## 🗂️ Structure et Architecture
+**MELODI Control Center** est une **application web locale d'administration et d'orchestration pour MELODI ERP**.
+Elle permet de gérer des machines locales et des serveurs distants via des connexions SSH sécurisées non-bloquantes (`asyncssh`).
 
-Le dépôt est volontairement minimaliste, centré autour d'un script principal :
+L'application écoute par défaut sur `127.0.0.1:8080`.
 
-- `launcher.py` : C'est le cœur de l'application. Ce fichier définit la classe `MelodiLauncher` héritant de `tk.Tk`. Il gère :
-  - L'interface graphique (bouton dynamique start/stop, indicateur visuel de statut dessiné sur un `tk.Canvas`).
-  - L'invocation du serveur MELODI. Le serveur est lancé en ciblant un fichier `main.py` qui doit se trouver au même niveau que le launcher. L'exécution se fait via le module `subprocess`.
-  - Le multithreading (module `threading`) pour lancer le serveur sans bloquer la boucle principale d'événements de Tkinter (`app.mainloop()`).
-  - L'arrêt propre du processus du serveur (`terminate()`).
-- `build.sh` : Script Bash contenant la commande de compilation pour générer un exécutable autonome (standalone) via PyInstaller (`pyinstaller --noconsole --onefile launcher.py`).
-- `melodi_launcher.log` : Fichier généré automatiquement par l'application pour capter les sorties standards (`stdout` et `stderr`) du processus enfant MELODI, évitant ainsi le blocage des pipes de communication Unix/Windows.
+---
 
-## 🚀 Mécanismes Clés
-1. **Interface Utilisateur (UI)** :
-   - Thème sombre implémenté manuellement via les configurations des widgets (`bg="#2b2b2b"`, `fg="white"`) pour conserver une esthétique moderne et cohérente.
-   - **Thread Safety** : Les modifications d'état de l'UI provenant du thread exécutant le serveur s'effectuent obligatoirement via la méthode `self.after(0, fonction)` de l'application principale, Tkinter n'étant pas thread-safe.
+## 🗂️ Structure et Architecture Cible
 
-2. **Gestion du Sous-processus (ERP)** :
-   - Le chemin du processus cible est une constante évaluée dynamiquement à partir de la position du script actuel : `os.path.join(os.path.dirname(os.path.abspath(__file__)), "main.py")`.
-   - L'appel `subprocess.Popen` est surveillé par un thread dédié `_run_erp_process` pour ne pas figer l'interface. Au démarrage ou à la sortie (prévue ou sur erreur), l'IU intercepte cet état.
+```text
+melodi_control_center/
+│
+├── app/
+│   ├── application.py          # Application Factory (create_app)
+│   ├── config/                 # SettingsManager
+│   ├── routes/                 # Routes HTML (web.py) et API REST (api.py)
+│   ├── core/                   # ServerManager, TaskManager, ProcessManager
+│   ├── remote/                 # Executor, LocalExecutor, SSHExecutor, CredentialManager
+│   ├── system/                 # PackageManager, SystemdManager, SystemInfo
+│   ├── installers/             # BaseInstaller, MelodiInstaller, PG, Redis, Nginx
+│   └── services/               # BaseService, Melodi, PG, Redis, Nginx, Celery
+│
+├── templates/                  # Layout Jinja2, Dashboard, Serveurs, Services, Install, Monitoring
+├── static/                     # CSS et images
+├── tests/                      # Suite de tests automatisés pytest
+├── config/                     # config.json et servers.json
+├── run.py                      # Point d'entrée Hypercorn / Asyncio
+├── build.sh                    # Script PyInstaller
+├── requirements.txt
+├── README.md
+└── AGENTS.md
+```
 
-3. **Compilation et Déploiement** :
-   - Le fichier `build.sh` doit avoir les permissions d'exécution (ex: `chmod +x build.sh`) pour fonctionner.
+---
 
-## ⚠️ Règles et Recommandations pour l'IA
-- **Dépendances graphiques limitées** : Maintenir l'utilisation exclusive de **Tkinter**. Ne pas rajouter de dépendances externes d'UI (`PyQt`, `customtkinter`, `Kivy`, etc).
-- **Modification de Tkinter depuis un Thread Secondaire** : Ne **JAMAIS** modifier directement l'interface Tkinter de `launcher.py` depuis un appel asynchrone ou un `Thread`. Utiliser les mécanismes de queue (via `after()` ou `Queue`) pour synchroniser les variables avec le thread principal.
-- **Démons Process/Processes affamés** : En cas de modification sur l'arrêt ou le démarrage du sous-processus de l'ERP (`subprocess.Popen`), prendre des garanties pour éviter la création de processus orphelins (zombies). Une fermeture gracieuse ("Graceful Shutdown") est gérée dans la fonction `on_closing()`.
-- **Canal de Log** : Pour débuguer MELODI, rediriger toute nouvelle écriture vers le point d'ancrage du fichier local `melodi_launcher.log`, ce qui évite la saturation du shell en arrière-plan.
+## 🚀 Principes & Règles d'Architecture
+
+1. **Abstraction d'Exécution Unifiée** :
+   - Ne jamais appeler directement de commandes shell ou SSH brutes dans les routes ou la logique métier.
+   - Toujours passer par l'interface `Executor` (`LocalExecutor` ou `SSHExecutor`) fournie par le `ServerManager`.
+
+2. **Sécurité SSH & Privilèges** :
+   - Écoute par défaut uniquement sur `127.0.0.1`.
+   - Ne jamais enregistrer de mots de passe SSH ou de clés privées en clair dans les fichiers de configuration public.
+   - Ne jamais exposer d'endpoint HTTP d'exécution arbitraire de commandes shell (`POST /api/execute`).
+
+3. **Tâches d'Arrière-Plan Asynchrones** :
+   - Les opérations longues (installations, sauvegardes) sont exécutées via `TaskManager` pour ne pas bloquer les requêtes HTTP.
+   - Le frontend interroge `GET /api/tasks/<task_id>` pour afficher l'avancement.
+
+4. **Compatibilité PyInstaller** :
+   - Utiliser `resource_path("templates")` et `resource_path("static")` pour résoudre les ressources sous PyInstaller (`sys._MEIPASS`).

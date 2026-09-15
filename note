@@ -7,5 +7,7 @@ source venv/bin/activate
 pip install pyinstaller
 pip install customtkinter
 pip install Pillow
+pip install Quart
+pip install dotenv
 
 pip freeze > requirements.txt
