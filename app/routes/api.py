@@ -247,3 +247,13 @@ async def update_settings_endpoint():
     settings = get_settings()
     success = settings.update(data)
     return jsonify({"success": success, "message": "Paramètres enregistrés avec succès." if success else "Erreur de sauvegarde."})
+
+
+# =========================================================================
+# 6. HEALTH CHECK
+# =========================================================================
+
+@api_bp.route("/status", methods=["GET"])
+async def health_check():
+    """Point de vérification de santé (ping) utilisé par le GUI Tkinter Launcher."""
+    return jsonify({"success": True, "status": "running", "app": "MELODI Control Center"})

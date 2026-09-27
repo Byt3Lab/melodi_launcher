@@ -418,6 +418,9 @@ class MelodiDesktopGUI:
                 self.root.after(0, self.handle_bind_error, e)
             except Exception as e:
                 print(f"[Launcher GUI] Server error: {e}")
+                import traceback
+                traceback.print_exc()
+                self.root.after(0, self._show_server_error, str(e))
 
         self.server_thread = threading.Thread(target=run_hypercorn, daemon=True)
         self.server_thread.start()
@@ -430,6 +433,17 @@ class MelodiDesktopGUI:
         if dialog.result:
             self.set_port(dialog.result)
             self.start_server()
+
+    def _show_server_error(self, error_msg: str):
+        """Affiche dans l'UI une erreur de démarrage du serveur web."""
+        self.update_ui_state(False)
+        short_msg = (error_msg[:100] + "...") if len(error_msg) > 100 else error_msg
+        self.status_label.config(text=f"Erreur : {short_msg}")
+        messagebox.showerror(
+            "Erreur de démarrage",
+            f"Le serveur web n'a pas pu démarrer :\n\n{error_msg}\n\n"
+            "Vérifiez la console ou les logs pour plus de détails."
+        )
 
     def stop_server(self):
         if self.loop and self.shutdown_event:
