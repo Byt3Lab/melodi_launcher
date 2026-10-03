@@ -1,2 +1,2 @@
 source venv/bin/activate
-python3 runS.py
+python3 run.py
