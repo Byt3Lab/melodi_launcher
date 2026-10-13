@@ -1,27 +1,28 @@
 """
-CeleryService: Service definition for Celery Background Task Worker.
+DockerService: Service representation for Docker daemon.
 """
 
 from typing import Dict, Any, List
 from app.services.base import BaseService
+from app.system.docker_manager import DockerManager
 from app.system.systemd_manager import SystemdManager
 from app.remote.executor import Executor
 
-class CeleryService(BaseService):
+class DockerService(BaseService):
     def __init__(self):
         super().__init__(
-            name="celery",
-            display_name="Celery Worker",
-            description="Gestionnaire de file d'attente et d'exécution de tâches asynchrones en arrière-plan.",
+            name="docker",
+            display_name="Docker Engine",
+            description="Plateforme de conteneurisation pour exécuter des services isolés.",
             port=0
         )
 
     async def is_installed(self, executor: Executor) -> bool:
-        return await SystemdManager.is_installed(executor, "celery")
+        return await DockerManager.is_installed(executor)
 
     async def status(self, executor: Executor) -> Dict[str, Any]:
         installed = await self.is_installed(executor)
-        active = await SystemdManager.is_active(executor, "celery") if installed else False
+        active = await DockerManager.is_running(executor) if installed else False
         return {
             "name": self.name,
             "display_name": self.display_name,
@@ -33,13 +34,13 @@ class CeleryService(BaseService):
         }
 
     async def start(self, executor: Executor) -> Dict[str, Any]:
-        return await SystemdManager.start(executor, "celery")
+        return await SystemdManager.start(executor, "docker")
 
     async def stop(self, executor: Executor) -> Dict[str, Any]:
-        return await SystemdManager.stop(executor, "celery")
+        return await SystemdManager.stop(executor, "docker")
 
     async def restart(self, executor: Executor) -> Dict[str, Any]:
-        return await SystemdManager.restart(executor, "celery")
+        return await SystemdManager.restart(executor, "docker")
 
     async def get_logs(self, executor: Executor, lines: int = 100) -> List[str]:
-        return await SystemdManager.get_logs(executor, "celery", lines)
+        return await SystemdManager.get_logs(executor, "docker", lines)

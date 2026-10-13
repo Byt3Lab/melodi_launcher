@@ -15,7 +15,7 @@ app = create_app()
 def main():
     settings = app.config["SETTINGS"]
     host = settings.get("server", "host", "127.0.0.1")
-    port = settings.get("server", "port", 8080)
+    port = settings.get("server", "port", 4000)
     debug = settings.get("server", "debug", False)
 
     config = Config()

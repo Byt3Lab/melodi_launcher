@@ -1,0 +1,572 @@
+{% extends "base.html" %}
+
+{% block title %}Installation {{ service_name|capitalize }} - MELODI Control Center{% endblock %}
+{% block header_title %}Installation & Déploiement : {{ service_name|capitalize }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-8" x-data="serviceInstallComponent('{{ service_name }}')">
+
+    <!-- Top Navigation / Breadcrumb -->
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <a href="/installation" class="p-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-white transition-all shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+            </a>
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-emerald-400">Assistant Dédié</span>
+                    <span class="text-slate-600">•</span>
+                    <span class="text-xs text-slate-400" x-text="serviceMeta.subtitle"></span>
+                </div>
+                <h3 class="text-2xl font-bold text-white flex items-center gap-2">
+                    <span x-text="serviceMeta.title"></span>
+                </h3>
+            </div>
+        </div>
+
+        <!-- Quick Tabs between Services -->
+        <div class="hidden sm:flex flex-wrap items-center gap-1 bg-slate-950 p-1.5 rounded-xl border border-slate-800 text-xs">
+            <template x-for="item in allServices" :key="item.id">
+                <a :href="'/installation/' + item.id"
+                   class="px-3 py-1.5 rounded-lg font-medium transition-all"
+                   :class="item.id === currentServiceId ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'"
+                   x-text="item.label"></a>
+            </template>
+        </div>
+    </div>
+
+    <!-- Active Task Progress Bar -->
+    <template x-if="activeTask">
+        <div class="bg-slate-950 p-6 rounded-2xl border border-emerald-500/40 shadow-xl space-y-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h4 class="font-bold text-slate-100 text-base" x-text="activeTask.name"></h4>
+                    <p class="text-xs text-slate-400" x-text="activeTask.current_step"></p>
+                </div>
+
+                <span class="text-xs px-3 py-1 rounded-full font-mono font-bold"
+                      :class="{
+                          'bg-amber-500/10 text-amber-400 border border-amber-500/30': activeTask.status === 'RUNNING',
+                          'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30': activeTask.status === 'SUCCESS',
+                          'bg-rose-500/10 text-rose-400 border border-rose-500/30': activeTask.status === 'FAILED'
+                      }"
+                      x-text="activeTask.status + ' (' + activeTask.progress + '%)'"></span>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="w-full bg-slate-900 rounded-full h-3 overflow-hidden border border-slate-800">
+                <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-3 transition-all duration-300 rounded-full"
+                     :style="'width: ' + activeTask.progress + '%'"></div>
+            </div>
+
+            <!-- Task Log Terminal Output -->
+            <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 font-mono text-xs text-slate-300 max-h-56 overflow-y-auto space-y-1">
+                <template x-for="(line, idx) in activeTask.logs" :key="idx">
+                    <p x-text="line"></p>
+                </template>
+            </div>
+        </div>
+    </template>
+
+    <!-- Main Service Installation Card & Details -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left Column: Overview, Status & Action -->
+        <div class="lg:col-span-1 space-y-6">
+            <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-6">
+                <!-- Badge & Icon -->
+                <div class="flex items-center gap-4">
+                    <div class="w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xl shadow-lg"
+                         :class="serviceMeta.colorClass">
+                        <span x-text="serviceMeta.badge"></span>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-white text-lg" x-text="serviceMeta.title"></h4>
+                        <span class="text-xs text-slate-400" x-text="serviceMeta.category"></span>
+                    </div>
+                </div>
+
+                <p class="text-xs text-slate-400 leading-relaxed" x-text="serviceMeta.description"></p>
+
+                <!-- Current State on Active Server -->
+                <div class="p-4 rounded-xl bg-slate-900 border border-slate-800/80 space-y-3">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-400">État du service :</span>
+                        <span class="px-2.5 py-1 rounded-full font-semibold border text-[11px]"
+                              :class="statusInfo.is_running ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : (statusInfo.is_installed ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-rose-500/10 text-rose-400 border-rose-500/30')">
+                            <span x-text="statusInfo.status_text || 'Chargement...'"></span>
+                        </span>
+                    </div>
+
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-400">Port par défaut :</span>
+                        <span class="font-mono text-slate-200" x-text="serviceMeta.port ? serviceMeta.port : 'N/A'"></span>
+                    </div>
+
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-400">Gestionnaire :</span>
+                        <span class="font-mono text-emerald-400" x-text="serviceMeta.unitFile"></span>
+                    </div>
+                </div>
+
+                <!-- Mode Options Form (Docker vs Natif, ZIP upload) -->
+                <div class="space-y-4 pt-3 border-t border-slate-800">
+                    <template x-if="serviceMeta.supportsDocker">
+                        <div class="space-y-2">
+                            <label class="text-xs font-semibold text-slate-300">Méthode de déploiement :</label>
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <button type="button" @click="useDocker = false"
+                                        class="py-2 px-3 rounded-lg border font-medium transition-all"
+                                        :class="!useDocker ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'">
+                                    💻 Hôte Natif
+                                </button>
+                                <button type="button" @click="useDocker = true"
+                                        class="py-2 px-3 rounded-lg border font-medium transition-all"
+                                        :class="useDocker ? 'bg-cyan-600/20 border-cyan-500 text-cyan-400' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'">
+                                    🐳 Docker
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- MELODI ERP Specific: ZIP File Selection -->
+                    <template x-if="currentServiceId === 'melodi'">
+                        <div class="space-y-2">
+                            <label class="text-xs font-semibold text-slate-300">Archive Source MELODI (.zip) :</label>
+                            <div class="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-2">
+                                <input type="file" accept=".zip" @change="handleFileSelect($event)" class="text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 w-full" />
+                                <template x-if="uploadedZipPath">
+                                    <p class="text-[11px] text-emerald-400 flex items-center gap-1 font-mono">
+                                        ✓ Fichier prêt : <span x-text="uploadedZipName"></span>
+                                    </p>
+                                </template>
+                                <template x-if="isUploading">
+                                    <p class="text-[11px] text-amber-400 animate-pulse">Téléversement du fichier en cours...</p>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Launch Button -->
+                    <div class="space-y-2 pt-2">
+                        <button @click="triggerInstall()"
+                                :disabled="(activeTask && activeTask.status === 'RUNNING') || isUploading"
+                                class="w-full py-3.5 px-4 rounded-xl text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                                :class="serviceMeta.btnColorClass">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                            </svg>
+                            <span x-text="activeTask && activeTask.status === 'RUNNING' ? 'Installation en cours...' : (statusInfo.is_installed ? 'Réinstaller / Mettre à jour' : 'Lancer l\'Installation')"></span>
+                        </button>
+                        <p class="text-[11px] text-center text-slate-500" x-text="useDocker ? 'Déploiement en conteneur Docker.' : 'Déploiement direct sur la machine hôte.'"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Step by step, prerequisites & technical details -->
+        <div class="lg:col-span-2 space-y-6">
+
+            <!-- Process & Steps Details -->
+            <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-6">
+                <div>
+                    <h4 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                        </svg>
+                        Étapes Automatisées du Déploiement
+                    </h4>
+                    <p class="text-xs text-slate-400 mt-1">Séquence d'opérations exécutées via l'Exécuteur (Local ou SSH non bloquant).</p>
+                </div>
+
+                <div class="space-y-4">
+                    <template x-for="(step, index) in (useDocker && serviceMeta.dockerSteps ? serviceMeta.dockerSteps : serviceMeta.steps)" :key="index">
+                        <div class="flex items-start gap-3 p-3.5 rounded-xl bg-slate-900 border border-slate-800/80">
+                            <div class="w-6 h-6 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5"
+                                 x-text="index + 1"></div>
+                            <div class="space-y-1">
+                                <h5 class="text-xs font-semibold text-slate-200" x-text="step.title"></h5>
+                                <p class="text-xs text-slate-400 leading-relaxed" x-text="step.description"></p>
+                                <template x-if="step.cmd">
+                                    <div class="mt-2 font-mono text-[11px] bg-slate-950 px-3 py-1.5 rounded-lg text-emerald-300 border border-slate-800">
+                                        <span class="text-slate-500">$ </span><span x-text="step.cmd"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- System Configuration & Technical Specs -->
+            <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-4">
+                <h4 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Informations Techniques & Emplacements
+                </h4>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                        <span class="text-slate-400">Emplacement Principal :</span>
+                        <p class="font-mono text-slate-200" x-text="serviceMeta.paths.app"></p>
+                    </div>
+                    <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                        <span class="text-slate-400">Fichier / Volume :</span>
+                        <p class="font-mono text-slate-200" x-text="serviceMeta.paths.config"></p>
+                    </div>
+                    <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                        <span class="text-slate-400">Journal des Logs :</span>
+                        <p class="font-mono text-slate-200" x-text="serviceMeta.paths.logs"></p>
+                    </div>
+                    <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                        <span class="text-slate-400">Gestionnaire :</span>
+                        <p class="font-mono text-slate-200" x-text="serviceMeta.unitFile"></p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+    const SERVICES_DATA = {
+        melodi: {
+            id: 'melodi',
+            title: 'MELODI ERP',
+            subtitle: 'Application Principale & Logique Métier',
+            category: 'Application ERP',
+            badge: 'M',
+            colorClass: 'bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950',
+            btnColorClass: 'bg-emerald-600 hover:bg-emerald-500',
+            unitFile: 'melodi.service / docker melodi_app',
+            port: 5000,
+            supportsDocker: true,
+            description: "Déploie l'application serveur centrale de MELODI ERP (soit via extraction ZIP sur la machine hôte avec environnement virtuel Python et systemd, soit en conteneur Docker).",
+            paths: {
+                app: '/opt/melodi ou /opt/melodi_docker',
+                config: '/opt/melodi/config/config.json',
+                logs: '/var/log/melodi.log ou docker logs'
+            },
+            steps: [
+                { title: "1. Dépendances système", description: "Installation de Python 3, venv, unzip et outils de compilation.", cmd: "apt-get install -y python3 python3-venv unzip git" },
+                { title: "2. Décompression du ZIP source", description: "Extraction de l'archive ZIP fournie par l'utilisateur vers /opt/melodi.", cmd: "unzip archive.zip -d /opt/melodi" },
+                { title: "3. Environnement virtuel Python", description: "Création du venv et installation des dépendances pip.", cmd: "/opt/melodi/venv/bin/pip install -r requirements.txt" },
+                { title: "4. Activation Systemd", description: "Enregistrement de melodi.service pour démarrage automatique.", cmd: "systemctl enable --now melodi" }
+            ],
+            dockerSteps: [
+                { title: "1. Vérification Docker", description: "Contrôle du moteur Docker Engine.", cmd: "docker info" },
+                { title: "2. Extraction du ZIP source", description: "Déballage de l'archive vers /opt/melodi_docker.", cmd: "unzip archive.zip -d /opt/melodi_docker" },
+                { title: "3. Construction de l'image", description: "Build du conteneur melodi:latest.", cmd: "docker build -t melodi:latest /opt/melodi_docker" },
+                { title: "4. Lancement du conteneur", description: "Démarrage du conteneur melodi_app sur le port 5000.", cmd: "docker run -d --name melodi_app -p 5000:5000 melodi:latest" }
+            ]
+        },
+        docker: {
+            id: 'docker',
+            title: 'Docker Engine',
+            subtitle: 'Moteur de Conteneurisation',
+            category: 'Infrastructure',
+            badge: '🐳',
+            colorClass: 'bg-cyan-500/20 border border-cyan-500/30 text-cyan-400',
+            btnColorClass: 'bg-cyan-600 hover:bg-cyan-500',
+            unitFile: 'docker.service',
+            port: null,
+            supportsDocker: false,
+            description: "Installe le runtime Docker Engine officiel (dépôt Docker APT ou docker.io) permettant d'isoler et d'exécuter facilement vos services et MELODI ERP sous forme de conteneurs légers.",
+            paths: {
+                app: '/var/lib/docker',
+                config: '/etc/docker/daemon.json',
+                logs: 'journalctl -u docker'
+            },
+            steps: [
+                { title: "1. Dépendances & Clé GPG", description: "Installation des certificats et ajout du dépôt officiel Docker.", cmd: "curl -fsSL https://download.docker.com/linux/.../gpg" },
+                { title: "2. Installation du paquet", description: "Installation de docker-ce, containerd et docker-compose-plugin.", cmd: "apt-get install -y docker-ce containerd.io" },
+                { title: "3. Démarrage du démon", description: "Activation et lancement du service systemd docker.", cmd: "systemctl enable --now docker" }
+            ]
+        },
+        minio: {
+            id: 'minio',
+            title: 'MinIO S3 Storage',
+            subtitle: 'Stockage Objet S3 Open Source',
+            category: 'Stockage & Pièces Jointes',
+            badge: '🪣',
+            colorClass: 'bg-amber-500/20 border border-amber-500/30 text-amber-400',
+            btnColorClass: 'bg-amber-600 hover:bg-amber-500',
+            unitFile: 'minio.service / docker melodi_minio',
+            port: 9000,
+            supportsDocker: true,
+            description: "Serveur de stockage d'objets haute performance compatible Amazon S3. Idéal pour centraliser les documents, factures et sauvegardes de MELODI ERP, avec une console web intuitive.",
+            paths: {
+                app: '/var/lib/minio/data',
+                config: '/etc/default/minio',
+                logs: 'journalctl -u minio / docker logs melodi_minio'
+            },
+            steps: [
+                { title: "1. Téléchargement du binaire", description: "Récupération du binaire autonome MinIO officiel.", cmd: "curl -fsSL https://dl.min.io/server/minio/release/... -o /usr/local/bin/minio" },
+                { title: "2. Création du dossier de données", description: "Préparation de /var/lib/minio/data.", cmd: "mkdir -p /var/lib/minio/data" },
+                { title: "3. Service Systemd", description: "Activation du service avec ports 9000 (S3 API) et 9001 (Console Web).", cmd: "systemctl enable --now minio" }
+            ],
+            dockerSteps: [
+                { title: "1. Création du volume de données", description: "Préparation du dossier persistant /var/lib/minio/data.", cmd: "mkdir -p /var/lib/minio/data" },
+                { title: "2. Lancement du conteneur", description: "Déploiement de l'image MinIO officielle avec console web intégrée.", cmd: "docker run -d --name melodi_minio -p 9000:9000 -p 9001:9001 quay.io/minio/minio:latest" }
+            ]
+        },
+        pgadmin: {
+            id: 'pgadmin',
+            title: 'pgAdmin 4 (Web)',
+            subtitle: 'Gestionnaire Web de Base de Données',
+            category: 'Gestion Base de données',
+            badge: '🐘',
+            colorClass: 'bg-blue-500/20 border border-blue-500/30 text-blue-400',
+            btnColorClass: 'bg-blue-600 hover:bg-blue-500',
+            unitFile: 'docker melodi_pgadmin / pgadmin4-web',
+            port: 5050,
+            supportsDocker: true,
+            description: "Interface web officielle et complète d'administration pour vos bases PostgreSQL (exploration des tables, requêtes SQL interactives, création de schémas et suivi des performances).",
+            paths: {
+                app: '/var/lib/pgadmin',
+                config: '/etc/pgadmin/config.py',
+                logs: 'docker logs melodi_pgadmin'
+            },
+            steps: [
+                { title: "1. Dépôt pgAdmin officiel", description: "Configuration des clés APT officielles PostgreSQL / pgAdmin.", cmd: "curl -fsS https://www.pgadmin.org/... | gpg" },
+                { title: "2. Installation APT", description: "Installation du paquet pgadmin4-web.", cmd: "apt-get install -y pgadmin4-web" }
+            ],
+            dockerSteps: [
+                { title: "1. Volume de configuration", description: "Préparation du répertoire persistant /var/lib/pgadmin.", cmd: "mkdir -p /var/lib/pgadmin" },
+                { title: "2. Déploiement Conteneur", description: "Lancement du conteneur pgAdmin 4 sur le port 5050.", cmd: "docker run -d --name melodi_pgadmin -p 5050:80 dpage/pgadmin4:latest" }
+            ]
+        },
+        postfix: {
+            id: 'postfix',
+            title: 'Postfix Mail Server',
+            subtitle: 'Serveur de Messagerie Transactionnelle',
+            category: 'Messagerie & Emails',
+            badge: '✉️',
+            colorClass: 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400',
+            btnColorClass: 'bg-emerald-600 hover:bg-emerald-500',
+            unitFile: 'postfix.service / docker melodi_postfix',
+            port: 25,
+            supportsDocker: true,
+            description: "Agent de transfert de courrier (MTA) ultra-léger et fiable permettant à MELODI ERP d'envoyer instantanément ses factures, devis et alertes par email.",
+            paths: {
+                app: '/etc/postfix',
+                config: '/etc/postfix/main.cf',
+                logs: '/var/log/mail.log ou journalctl -u postfix'
+            },
+            steps: [
+                { title: "1. Pré-configuration Debconf", description: "Configuration non-interactive pour installation silencieuse.", cmd: "debconf-set-selections" },
+                { title: "2. Installation du paquet", description: "Installation de postfix et des outils mailutils.", cmd: "apt-get install -y postfix mailutils" },
+                { title: "3. Configuration de boucle locale", description: "Paramétrage postconf pour écoute sécurisée en local.", cmd: "postconf -e 'inet_interfaces = loopback-only'" },
+                { title: "4. Démarrage du service", description: "Activation et lancement du service Postfix.", cmd: "systemctl enable --now postfix" }
+            ],
+            dockerSteps: [
+                { title: "1. Déploiement Conteneur", description: "Démarrage du conteneur boky/postfix avec écoute SMTP.", cmd: "docker run -d --name melodi_postfix -p 25:587 boky/postfix:latest" }
+            ]
+        },
+        postgresql: {
+            id: 'postgresql',
+            title: 'PostgreSQL Database',
+            subtitle: 'Moteur Relationnel SQL Persistant',
+            category: 'Base de données',
+            badge: 'PG',
+            colorClass: 'bg-indigo-500/20 border border-indigo-500/30 text-indigo-400',
+            btnColorClass: 'bg-indigo-600 hover:bg-indigo-500',
+            unitFile: 'postgresql.service / docker melodi_postgres',
+            port: 5432,
+            supportsDocker: true,
+            description: "Système de gestion de base de données relationnelle objet performant et sécurisé, stockage principal des entités et transactions de MELODI ERP.",
+            paths: {
+                app: '/var/lib/postgresql',
+                config: '/etc/postgresql/*/main/postgresql.conf',
+                logs: '/var/log/postgresql/'
+            },
+            steps: [
+                { title: "1. Vérification des paquets", description: "Vérifie si PostgreSQL est présent.", cmd: "dpkg -s postgresql" },
+                { title: "2. Installation via APT", description: "Installation de postgresql et postgresql-contrib.", cmd: "apt-get install -y postgresql postgresql-contrib" },
+                { title: "3. Activation", description: "Démarrage immédiat et activation au boot.", cmd: "systemctl enable --now postgresql" }
+            ],
+            dockerSteps: [
+                { title: "1. Dossier de persistance", description: "Création du dossier persistant /var/lib/postgresql/docker_data.", cmd: "mkdir -p /var/lib/postgresql/docker_data" },
+                { title: "2. Démarrage Conteneur", description: "Lancement du conteneur postgres:16-alpine sur le port 5432.", cmd: "docker run -d --name melodi_postgres -p 5432:5432 postgres:16-alpine" }
+            ]
+        },
+        redis: {
+            id: 'redis',
+            title: 'Redis Server',
+            subtitle: 'Cache Mémoire & Courtier de Messages',
+            category: 'Cache & Queue',
+            badge: 'RD',
+            colorClass: 'bg-rose-500/20 border border-rose-500/30 text-rose-400',
+            btnColorClass: 'bg-rose-600 hover:bg-rose-500',
+            unitFile: 'redis-server.service / docker melodi_redis',
+            port: 6379,
+            supportsDocker: true,
+            description: "Structure de données en mémoire ultra-rapide servant de cache applicatif, gestionnaire de sessions et broker de messages pour Celery.",
+            paths: {
+                app: '/var/lib/redis',
+                config: '/etc/redis/redis.conf',
+                logs: '/var/log/redis/redis-server.log'
+            },
+            steps: [
+                { title: "1. Installation APT", description: "Installation du paquet redis-server.", cmd: "apt-get install -y redis-server" },
+                { title: "2. Démarrage", description: "Activation et démarrage immédiat.", cmd: "systemctl enable --now redis-server" }
+            ],
+            dockerSteps: [
+                { title: "1. Démarrage Conteneur", description: "Lancement du conteneur redis:alpine sur le port 6379.", cmd: "docker run -d --name melodi_redis -p 6379:6379 redis:alpine" }
+            ]
+        },
+        nginx: {
+            id: 'nginx',
+            title: 'Nginx Web Server',
+            subtitle: 'Reverse Proxy & Terminaison HTTP/S',
+            category: 'Serveur Web & Proxy',
+            badge: 'NG',
+            colorClass: 'bg-teal-500/20 border border-teal-500/30 text-teal-400',
+            btnColorClass: 'bg-teal-600 hover:bg-teal-500',
+            unitFile: 'nginx.service',
+            port: 80,
+            supportsDocker: false,
+            description: "Serveur proxy HTTP inverse performant, assurant la distribution de charge, le routage des requêtes web vers MELODI ERP et la sécurité SSL.",
+            paths: {
+                app: '/etc/nginx',
+                config: '/etc/nginx/nginx.conf',
+                logs: '/var/log/nginx/access.log'
+            },
+            steps: [
+                { title: "1. Installation APT", description: "Installation du paquet nginx officiel.", cmd: "apt-get install -y nginx" },
+                { title: "2. Contrôle de syntaxe", description: "Vérification des fichiers de configuration.", cmd: "nginx -t" },
+                { title: "3. Démarrage", description: "Démarrage et enregistrement dans systemd.", cmd: "systemctl enable --now nginx" }
+            ]
+        }
+    };
+
+    function serviceInstallComponent(initialService) {
+        return {
+            currentServiceId: initialService,
+            serviceMeta: SERVICES_DATA[initialService] || SERVICES_DATA.melodi,
+            allServices: [
+                { id: 'melodi', label: 'MELODI ERP' },
+                { id: 'docker', label: 'Docker' },
+                { id: 'minio', label: 'MinIO (S3)' },
+                { id: 'pgadmin', label: 'pgAdmin 4' },
+                { id: 'postfix', label: 'Postfix' },
+                { id: 'postgresql', label: 'PostgreSQL' },
+                { id: 'redis', label: 'Redis' },
+                { id: 'nginx', label: 'Nginx' }
+            ],
+            statusInfo: {
+                is_installed: false,
+                is_running: false,
+                status_text: 'Vérification...'
+            },
+            useDocker: (initialService === 'minio' || initialService === 'pgadmin'),
+            uploadedZipPath: null,
+            uploadedZipName: null,
+            isUploading: false,
+            activeTask: null,
+            activeTaskId: null,
+            timer: null,
+
+            init() {
+                this.loadStatus();
+                setInterval(() => {
+                    if (!this.activeTaskId) {
+                        this.loadStatus();
+                    }
+                }, 3000);
+            },
+
+            async loadStatus() {
+                const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
+                try {
+                    const res = await fetch(`/api/servers/${activeServerId}/installers/${this.currentServiceId}`);
+                    const data = await res.json();
+                    if (data.success && data.service) {
+                        this.statusInfo = data.service;
+                    }
+                } catch (e) {}
+            },
+
+            async handleFileSelect(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
+                const formData = new FormData();
+                formData.append('file', file);
+
+                this.isUploading = true;
+                try {
+                    const res = await fetch(`/api/servers/${activeServerId}/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        this.uploadedZipPath = data.file_path;
+                        this.uploadedZipName = data.filename;
+                    } else {
+                        alert(data.message || "Erreur de téléversement");
+                    }
+                } catch (err) {
+                    alert("Échec du téléversement du fichier ZIP");
+                } finally {
+                    this.isUploading = false;
+                }
+            },
+
+            triggerInstall() {
+                const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
+                const methodLabel = this.useDocker ? 'Docker' : 'machine hôte native';
+                if (!confirm(`Confirmer le lancement de l'installation de ${this.serviceMeta.title} via ${methodLabel} sur le serveur sélectionné ?`)) return;
+
+                const payload = {
+                    use_docker: this.useDocker,
+                    zip_path: this.uploadedZipPath
+                };
+
+                fetch(`/api/servers/${activeServerId}/installers/${this.currentServiceId}/install`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        this.activeTaskId = data.task_id;
+                        this.pollTask();
+                        if (this.timer) clearInterval(this.timer);
+                        this.timer = setInterval(() => this.pollTask(), 1000);
+                    } else {
+                        alert(data.message);
+                    }
+                })
+                .catch(e => alert("Erreur au lancement de l'installation."));
+            },
+
+            async pollTask() {
+                if (!this.activeTaskId) return;
+                try {
+                    const res = await fetch(`/api/tasks/${this.activeTaskId}`);
+                    const data = await res.json();
+                    if (data.success) {
+                        this.activeTask = data.task;
+                        if (this.activeTask.status === 'SUCCESS' || this.activeTask.status === 'FAILED') {
+                            if (this.timer) clearInterval(this.timer);
+                            this.activeTaskId = null;
+                            this.loadStatus();
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
+    }
+</script>
+{% endblock %}

@@ -166,9 +166,72 @@ async def get_service_logs(server_id, service_name):
 # 4. INSTALLERS & BACKGROUND TASKS ENDPOINTS
 # =========================================================================
 
+@api_bp.route("/servers/<server_id>/installers/<installer_name>", methods=["GET"])
+async def get_installer_info(server_id, installer_name):
+    """Vérifie l'état d'installation et les détails du service/installateur."""
+    installers_map = get_installers_map()
+    services_map = get_services_map()
+    installer = installers_map.get(installer_name)
+    service = services_map.get(installer_name)
+
+    if not installer:
+        return jsonify({"success": False, "message": f"Installateur '{installer_name}' non reconnu."}), 404
+
+    sm = get_server_manager()
+    srv = sm.get_server(server_id)
+    if not srv:
+        return jsonify({"success": False, "message": "Serveur non trouvé."}), 404
+
+    executor = sm.get_executor(server_id)
+    service_status = await service.status(executor) if service else {}
+
+    return jsonify({
+        "success": True,
+        "name": installer.name,
+        "display_name": installer.display_name,
+        "service": service_status
+    })
+
+@api_bp.route("/servers/<server_id>/upload", methods=["POST"])
+async def upload_file(server_id):
+    """Upload un fichier (ex: archive ZIP de MELODI ERP) sur le serveur local ou distant."""
+    files = await request.files
+    if "file" not in files:
+        return jsonify({"success": False, "message": "Aucun fichier fourni."}), 400
+
+    file = files["file"]
+    if not file.filename:
+        return jsonify({"success": False, "message": "Nom de fichier manquant."}), 400
+
+    import os
+    upload_dir = "/tmp/melodi_uploads"
+    os.makedirs(upload_dir, exist_ok=True)
+    local_path = os.path.join(upload_dir, file.filename)
+    await file.save(local_path)
+
+    sm = get_server_manager()
+    srv = sm.get_server(server_id)
+    if not srv:
+        return jsonify({"success": False, "message": "Serveur non trouvé."}), 404
+
+    # Si le serveur est distant SSH, transférer le fichier via SFTP/SCP
+    if server_id != "local":
+        executor = sm.get_executor(server_id)
+        if hasattr(executor, "_conn") and executor._conn:
+            try:
+                import asyncssh
+                async with executor._conn.start_sftp_client() as sftp:
+                    remote_path = f"/tmp/{file.filename}"
+                    await sftp.put(local_path, remote_path)
+                    return jsonify({"success": True, "file_path": remote_path, "filename": file.filename})
+            except Exception as e:
+                return jsonify({"success": False, "message": f"Erreur transfert SSH: {str(e)}"}), 500
+
+    return jsonify({"success": True, "file_path": local_path, "filename": file.filename})
+
 @api_bp.route("/servers/<server_id>/installers/<installer_name>/install", methods=["POST"])
 async def launch_installation(server_id, installer_name):
-    """Lance une tâche d'installation en arrière-plan."""
+    """Lance une tâche d'installation en arrière-plan avec support des paramètres optionnels."""
     installers_map = get_installers_map()
     installer = installers_map.get(installer_name)
 
@@ -183,8 +246,12 @@ async def launch_installation(server_id, installer_name):
     executor = sm.get_executor(server_id)
     tm = get_task_manager()
 
+    options = {}
+    if request.is_json:
+        options = await request.get_json() or {}
+
     async def task_coro(task_progress):
-        await installer.install(executor, task_progress)
+        await installer.install(executor, task_progress, **options)
 
     task_prog = tm.create_task(
         name=f"Installation {installer.display_name} sur {srv['name']}",

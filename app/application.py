@@ -17,13 +17,20 @@ from app.services.melodi import MelodiService
 from app.services.postgresql import PostgreSQLService
 from app.services.redis import RedisService
 from app.services.nginx import NginxService
-from app.services.celery import CeleryService
+from app.services.docker import DockerService
+from app.services.minio import MinioService
+from app.services.pgadmin import PgAdminService
+from app.services.postfix import PostfixService
 
 # Installers
 from app.installers.melodi import MelodiInstaller
 from app.installers.postgresql import PostgreSQLInstaller
 from app.installers.redis import RedisInstaller
 from app.installers.nginx import NginxInstaller
+from app.installers.docker import DockerInstaller
+from app.installers.minio import MinioInstaller
+from app.installers.pgadmin import PgAdminInstaller
+from app.installers.postfix import PostfixInstaller
 
 # Routes
 from app.routes.web import web_bp
@@ -41,6 +48,9 @@ def create_app(config_file_path: str = None) -> Quart:
         template_folder=template_dir,
         static_folder=static_dir
     )
+
+    # Limite de taille d'upload de fichiers (500 Mo pour les archives ZIP de MELODI)
+    app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 
     # 1. Managers principaux
     settings_manager = SettingsManager(config_file_path)
@@ -63,7 +73,10 @@ def create_app(config_file_path: str = None) -> Quart:
         "postgresql": PostgreSQLService(),
         "redis": RedisService(),
         "nginx": NginxService(),
-        "celery": CeleryService()
+        "docker": DockerService(),
+        "minio": MinioService(),
+        "pgadmin": PgAdminService(),
+        "postfix": PostfixService()
     }
     app.config["SERVICES_MAP"] = services_map
 
@@ -72,7 +85,11 @@ def create_app(config_file_path: str = None) -> Quart:
         "melodi": MelodiInstaller(),
         "postgresql": PostgreSQLInstaller(),
         "redis": RedisInstaller(),
-        "nginx": NginxInstaller()
+        "nginx": NginxInstaller(),
+        "docker": DockerInstaller(),
+        "minio": MinioInstaller(),
+        "pgadmin": PgAdminInstaller(),
+        "postfix": PostfixInstaller()
     }
     app.config["INSTALLERS_MAP"] = installers_map
 

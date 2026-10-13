@@ -9,7 +9,7 @@
     <div class="flex items-center justify-between">
         <div>
             <h3 class="text-xl font-bold text-white">Installation des Composants</h3>
-            <p class="text-sm text-slate-400">Déployez les briques et services logiciels sur le serveur sélectionné.</p>
+            <p class="text-sm text-slate-400">Déployez les briques et services logiciels sur le serveur sélectionné (Hôte natif ou Docker).</p>
         </div>
     </div>
 
@@ -52,101 +52,226 @@
         <!-- MELODI ERP Installer -->
         <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
             <div class="space-y-3">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-bold text-slate-950 shadow-lg">
-                        M
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-bold text-slate-950 shadow-lg">
+                            M
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 text-lg">MELODI ERP</h4>
+                            <span class="text-xs text-slate-400">Application ERP Principale</span>
+                        </div>
                     </div>
-                    <div>
-                        <h4 class="font-bold text-slate-100 text-lg">MELODI ERP</h4>
-                        <span class="text-xs text-slate-400">Application ERP Principale</span>
-                    </div>
+                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Natif / Docker (ZIP)</span>
                 </div>
 
                 <p class="text-xs text-slate-400 leading-relaxed">
-                    Déploie l'application MELODI ERP dans <code class="text-emerald-400">/opt/melodi</code> avec son environnement virtuel Python et génère l'unité systemd <code class="text-emerald-400">melodi.service</code>.
+                    Déploie l'application MELODI ERP à partir d'une archive source ZIP fournie par l'utilisateur (déploiement direct avec systemd ou en conteneur Docker isolé).
                 </p>
             </div>
 
-            <button @click="triggerInstall('melodi')" 
-                    :disabled="activeTask && activeTask.status === 'RUNNING'"
-                    class="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
-                <span>Installer MELODI ERP</span>
-            </button>
+            <div class="space-y-2 pt-2 border-t border-slate-800/80">
+                <a href="/installation/melodi" class="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span>Assistant d'installation & Upload ZIP</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Docker Engine Installer -->
+        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-base">
+                            🐳
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 text-lg">Docker Engine</h4>
+                            <span class="text-xs text-slate-400">Moteur de Conteneurs</span>
+                        </div>
+                    </div>
+                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">Hôte Linux</span>
+                </div>
+
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Installe et active le démon Docker Engine et Docker Compose sur le système cible pour pouvoir exécuter tous les autres services sous forme de conteneurs.
+                </p>
+            </div>
+
+            <div class="space-y-2 pt-2 border-t border-slate-800/80">
+                <a href="/installation/docker" class="w-full py-2.5 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
+                    <span>Installer Docker Engine</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- MinIO Object Storage (S3) -->
+        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-base">
+                            🪣
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 text-lg">MinIO S3 Storage</h4>
+                            <span class="text-xs text-slate-400">Stockage d'objets & Pièces jointes</span>
+                        </div>
+                    </div>
+                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-amber-500/10 text-amber-400 border border-amber-500/30">Port 9000 / 9001</span>
+                </div>
+
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Serveur S3 performant pour le stockage des pièces jointes, devis, factures et exports de MELODI ERP avec console web d'administration incluse.
+                </p>
+            </div>
+
+            <div class="space-y-2 pt-2 border-t border-slate-800/80">
+                <a href="/installation/minio" class="w-full py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
+                    <span>Installer MinIO (Natif ou Docker)</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- pgAdmin 4 Database Manager -->
+        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-base">
+                            🐘
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 text-lg">pgAdmin 4 (Web)</h4>
+                            <span class="text-xs text-slate-400">Gestionnaire Base de données</span>
+                        </div>
+                    </div>
+                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-blue-500/10 text-blue-400 border border-blue-500/30">Port 5050</span>
+                </div>
+
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Interface web complète pour explorer vos tables PostgreSQL, exécuter des requêtes SQL interactives et administrer la base de données de l'ERP.
+                </p>
+            </div>
+
+            <div class="space-y-2 pt-2 border-t border-slate-800/80">
+                <a href="/installation/pgadmin" class="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
+                    <span>Installer pgAdmin 4</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Postfix Mail Server -->
+        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-base">
+                            ✉️
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 text-lg">Postfix Mail Server</h4>
+                            <span class="text-xs text-slate-400">Serveur de Messagerie Transactionnelle</span>
+                        </div>
+                    </div>
+                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Port 25</span>
+                </div>
+
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Agent de transfert d'emails (MTA) ultra-léger et rapide pour l'expédition des factures, notifications et alertes email de MELODI ERP.
+                </p>
+            </div>
+
+            <div class="space-y-2 pt-2 border-t border-slate-800/80">
+                <a href="/installation/postfix" class="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
+                    <span>Installer Postfix (Natif ou Docker)</span>
+                </a>
+            </div>
         </div>
 
         <!-- PostgreSQL Database Installer -->
         <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
             <div class="space-y-3">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
-                        PG
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+                            PG
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 text-lg">PostgreSQL</h4>
+                            <span class="text-xs text-slate-400">Base de données Relationnelle</span>
+                        </div>
                     </div>
-                    <div>
-                        <h4 class="font-bold text-slate-100 text-lg">PostgreSQL</h4>
-                        <span class="text-xs text-slate-400">Base de données Relationnelle</span>
-                    </div>
+                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">Port 5432</span>
                 </div>
 
                 <p class="text-xs text-slate-400 leading-relaxed">
-                    Installe les paquets système <code class="text-indigo-400">postgresql postgresql-contrib</code> via apt et active le service au démarrage.
+                    Installe les paquets système <code class="text-indigo-400">postgresql</code> ou lance le conteneur Docker officiel avec persistance des données.
                 </p>
             </div>
 
-            <button @click="triggerInstall('postgresql')" 
-                    :disabled="activeTask && activeTask.status === 'RUNNING'"
-                    class="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
-                <span>Installer PostgreSQL</span>
-            </button>
+            <div class="space-y-2 pt-2 border-t border-slate-800/80">
+                <a href="/installation/postgresql" class="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
+                    <span>Installer PostgreSQL</span>
+                </a>
+            </div>
         </div>
 
         <!-- Redis Server Installer -->
         <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
             <div class="space-y-3">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center font-bold">
-                        RD
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center font-bold">
+                            RD
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 text-lg">Redis Server</h4>
+                            <span class="text-xs text-slate-400">Cache & Message Broker</span>
+                        </div>
                     </div>
-                    <div>
-                        <h4 class="font-bold text-slate-100 text-lg">Redis Server</h4>
-                        <span class="text-xs text-slate-400">Cache & Message Broker</span>
-                    </div>
+                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-rose-500/10 text-rose-400 border border-rose-500/30">Port 6379</span>
                 </div>
 
                 <p class="text-xs text-slate-400 leading-relaxed">
-                    Installe le paquet apt <code class="text-rose-400">redis-server</code> et démarre le serveur de cache mémoire.
+                    Serveur de cache mémoire ultra-rapide et broker de files d'attente (disponible en paquet natif apt ou conteneur Docker).
                 </p>
             </div>
 
-            <button @click="triggerInstall('redis')" 
-                    :disabled="activeTask && activeTask.status === 'RUNNING'"
-                    class="w-full py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
-                <span>Installer Redis</span>
-            </button>
+            <div class="space-y-2 pt-2 border-t border-slate-800/80">
+                <a href="/installation/redis" class="w-full py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
+                    <span>Installer Redis</span>
+                </a>
+            </div>
         </div>
 
         <!-- Nginx Web Server Installer -->
         <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
             <div class="space-y-3">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center font-bold">
-                        NG
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center font-bold">
+                            NG
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 text-lg">Nginx Web Server</h4>
+                            <span class="text-xs text-slate-400">Proxy Inverse HTTP</span>
+                        </div>
                     </div>
-                    <div>
-                        <h4 class="font-bold text-slate-100 text-lg">Nginx Web Server</h4>
-                        <span class="text-xs text-slate-400">Proxy Inverse HTTP</span>
-                    </div>
+                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-teal-500/10 text-teal-400 border border-teal-500/30">Port 80</span>
                 </div>
 
                 <p class="text-xs text-slate-400 leading-relaxed">
-                    Installe le paquet apt <code class="text-teal-400">nginx</code>, valide la configuration initiale et active le service systemd.
+                    Installe le paquet apt <code class="text-teal-400">nginx</code>, valide la configuration initiale et active le reverse proxy vers l'ERP et les consoles web.
                 </p>
             </div>
 
-            <button @click="triggerInstall('nginx')" 
-                    :disabled="activeTask && activeTask.status === 'RUNNING'"
-                    class="w-full py-3 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
-                <span>Installer Nginx</span>
-            </button>
+            <div class="space-y-2 pt-2 border-t border-slate-800/80">
+                <a href="/installation/nginx" class="w-full py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
+                    <span>Installer Nginx</span>
+                </a>
+            </div>
         </div>
 
     </div>
