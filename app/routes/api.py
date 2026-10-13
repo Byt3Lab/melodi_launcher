@@ -3,8 +3,16 @@ REST API Blueprint for MELODI Control Center.
 Supports Multi-Server Management, Service Control, Background Tasks, System Metrics & Logs.
 """
 
-from quart import Blueprint, jsonify, request, current_app
+from quart import Blueprint, jsonify, request, websocket, current_app
 from app.system.system_info import SystemInfo
+import asyncio
+import os
+import pty
+import fcntl
+import termios
+import struct
+import asyncssh
+
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -81,6 +89,123 @@ async def test_server(server_id):
     sm = get_server_manager()
     result = await sm.test_server_connection(server_id)
     return jsonify(result)
+
+@api_bp.websocket("/servers/<server_id>/terminal")
+async def server_terminal_ws(server_id):
+    """Session de terminal interactif bidirectionnel en temps réel (WebSocket)."""
+    sm = get_server_manager()
+    srv = sm.get_server(server_id)
+    if not srv:
+        await websocket.send("Erreur: Serveur introuvable.\r\n")
+        return
+
+    # 1. CAS SERVEUR LOCAL : Pseudo-terminal pty natif
+    if srv.get("type") == "local" or server_id == "local":
+        master_fd, slave_fd = pty.openpty()
+
+        env = os.environ.copy()
+        env["TERM"] = "xterm-256color"
+        env["COLORTERM"] = "truecolor"
+
+        proc = await asyncio.create_subprocess_exec(
+            "/bin/bash",
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            env=env,
+            close_fds=True
+        )
+        os.close(slave_fd)
+
+        # Définir master_fd en mode non-bloquant
+        flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)
+        fcntl.fcntl(master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
+        loop = asyncio.get_event_loop()
+
+        async def pty_reader():
+            while True:
+                try:
+                    await asyncio.sleep(0.02)
+                    data = await loop.run_in_executor(None, lambda: os.read(master_fd, 4096) if master_fd else b"")
+                    if data:
+                        await websocket.send(data.decode("utf-8", errors="replace"))
+                except (OSError, asyncio.CancelledError):
+                    break
+                except Exception:
+                    break
+
+        reader_task = asyncio.create_task(pty_reader())
+
+        try:
+            while True:
+                msg = await websocket.receive()
+                if msg is None:
+                    break
+                os.write(master_fd, msg.encode("utf-8", errors="replace"))
+        except (asyncio.CancelledError, Exception):
+            pass
+        finally:
+            reader_task.cancel()
+            try:
+                os.close(master_fd)
+            except Exception:
+                pass
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+
+    # 2. CAS SERVEUR DISTANT SSH : asyncssh interactive session
+    else:
+        executor = sm.get_executor(server_id)
+        if not await executor.is_connected():
+            connected = await executor.connect()
+            if not connected:
+                await websocket.send(f"\r\n❌ Impossible d'ouvrir la connexion SSH à {srv.get('host')}\r\n")
+                return
+
+        conn = getattr(executor, "_conn", None)
+        if not conn:
+            await websocket.send("\r\n❌ Connexion SSH indisponible.\r\n")
+            return
+
+        try:
+            chan, session = await conn.create_session(
+                asyncssh.SSHClientSession,
+                term_type="xterm-256color",
+                term_size=(80, 24)
+            )
+
+            async def ssh_reader():
+                while True:
+                    try:
+                        data = await session.read(4096)
+                        if not data:
+                            break
+                        await websocket.send(str(data))
+                    except Exception:
+                        break
+
+            ssh_task = asyncio.create_task(ssh_reader())
+
+            try:
+                while True:
+                    msg = await websocket.receive()
+                    if msg is None:
+                        break
+                    session.write(msg)
+            except Exception:
+                pass
+            finally:
+                ssh_task.cancel()
+                try:
+                    chan.close()
+                except Exception:
+                    pass
+        except Exception as e:
+            await websocket.send(f"\r\n❌ Erreur session interactive SSH: {str(e)}\r\n")
+
 
 
 # =========================================================================

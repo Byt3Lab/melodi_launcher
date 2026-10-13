@@ -49,7 +49,13 @@ async def logs():
     """Console de visualisation des logs."""
     return await render_template("logs.html", active_page="logs")
 
+@web_bp.route("/terminal")
+async def terminal():
+    """Terminal web interactif temps réel (WebSocket PTY)."""
+    return await render_template("terminal.html", active_page="terminal")
+
 @web_bp.route("/settings")
 async def settings():
     """Paramètres globaux du Control Center."""
     return await render_template("settings.html", active_page="settings")
+

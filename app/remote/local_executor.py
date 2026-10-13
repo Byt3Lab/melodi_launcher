@@ -8,8 +8,10 @@ from typing import Tuple, Dict, Any
 from app.remote.executor import Executor
 
 class LocalExecutor(Executor):
-    def __init__(self):
+    def __init__(self, password: str = None):
         super().__init__(name="Localhost")
+        self.password = password
+
 
     async def connect(self) -> bool:
         return True
@@ -48,9 +50,18 @@ class LocalExecutor(Executor):
         start = time.time()
         code, stdout, stderr = await self.run("uname -a")
         latency = round((time.time() - start) * 1000, 2)
+
+        # Tester également l'élévation sudo
+        sudo_ok = False
+        sudo_code, _, sudo_err = await self.run_sudo("whoami", timeout=5.0)
+        if sudo_code == 0:
+            sudo_ok = True
+
         return {
             "success": code == 0,
             "latency_ms": latency,
             "system_uname": stdout.strip() if code == 0 else "",
-            "error": stderr.strip() if code != 0 else None
+            "sudo_ready": sudo_ok,
+            "error": stderr.strip() if code != 0 else (None if sudo_ok else "Sudo requiert un mot de passe non configuré")
         }
+

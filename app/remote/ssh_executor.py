@@ -107,9 +107,18 @@ class SSHExecutor(Executor):
 
         code, stdout, stderr = await self.run("uname -a", timeout=5.0)
         latency = round((time.time() - start) * 1000, 2)
+
+        # Tester sudo
+        sudo_ok = False
+        sudo_code, _, _ = await self.run_sudo("whoami", timeout=5.0)
+        if sudo_code == 0:
+            sudo_ok = True
+
         return {
             "success": code == 0,
             "latency_ms": latency,
             "system_uname": stdout.strip() if code == 0 else "",
-            "error": stderr.strip() if code != 0 else None
+            "sudo_ready": sudo_ok,
+            "error": stderr.strip() if code != 0 else (None if sudo_ok else "Attention: sudo requiert un mot de passe ou NOPASSWD")
         }
+

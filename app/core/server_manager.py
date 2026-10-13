@@ -50,8 +50,10 @@ class ServerManager:
             self._servers["local"] = DEFAULT_SERVERS[0]
             self.save()
 
-        # Instancier l'exécuteur local
-        self._executors["local"] = LocalExecutor()
+        # Instancier l'exécuteur local avec mot de passe éventuel
+        local_srv = self._servers.get("local", {})
+        self._executors["local"] = LocalExecutor(password=local_srv.get("password"))
+
 
     def save(self) -> bool:
         """Sauvegarde la liste des serveurs dans servers.json."""
@@ -79,8 +81,10 @@ class ServerManager:
 
         srv = self.get_server(server_id)
         if not srv or srv.get("type") == "local":
-            executor = LocalExecutor()
+            password = srv.get("password") if srv else None
+            executor = LocalExecutor(password=password)
         else:
+
             auth_method = srv.get("auth_method", "key")
             key_path = srv.get("key_path") if auth_method == "key" or not srv.get("auth_method") else None
             password = srv.get("password") if auth_method == "password" else None
