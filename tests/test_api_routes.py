@@ -64,7 +64,7 @@ async def test_installation_web_pages(app_instance):
     assert res.status_code == 200
 
     # Pages d'installation dédiées pour chaque service
-    for service_name in ["melodi", "postgresql", "redis", "nginx"]:
+    for service_name in ["melodi", "postgresql", "redis", "pgadmin"]:
         svc_res = await client.get(f"/installation/{service_name}")
         assert svc_res.status_code == 200
 
@@ -72,11 +72,43 @@ async def test_installation_web_pages(app_instance):
 async def test_installer_api_info_endpoint(app_instance):
     client = app_instance.test_client()
 
-    for installer_name in ["melodi", "postgresql", "redis", "nginx"]:
+    for installer_name in ["melodi", "postgresql", "redis", "pgadmin"]:
         res = await client.get(f"/api/servers/local/installers/{installer_name}")
         assert res.status_code == 200
         data = await res.get_json()
         assert data["success"] is True
         assert data["name"] == installer_name
         assert "service" in data
+
+@pytest.mark.asyncio
+async def test_task_cancel_endpoint(app_instance):
+    import asyncio
+
+    client = app_instance.test_client()
+    tm = app_instance.config["TASK_MANAGER"]
+
+    async def dummy_slow_task(task):
+        task.update(10, "En cours...")
+        await asyncio.sleep(5.0)
+
+    task_prog = tm.create_task("Tâche Test API", "local", dummy_slow_task)
+    task_id = task_prog.task_id
+
+    # 1. Vérifier statut via GET /api/tasks/<task_id>
+    res = await client.get(f"/api/tasks/{task_id}")
+    assert res.status_code == 200
+    data = await res.get_json()
+    assert data["success"] is True
+    assert data["task"]["status"] in ("PENDING", "RUNNING")
+
+    # 2. Interrompre la tâche via POST /api/tasks/<task_id>/cancel
+    cancel_res = await client.post(f"/api/tasks/{task_id}/cancel")
+    assert cancel_res.status_code == 200
+    cancel_data = await cancel_res.get_json()
+    assert cancel_data["success"] is True
+
+    # 3. Vérifier que le statut est devenu CANCELLED
+    res_after = await client.get(f"/api/tasks/{task_id}")
+    data_after = await res_after.get_json()
+    assert data_after["task"]["status"] == "CANCELLED"
 

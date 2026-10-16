@@ -7,6 +7,7 @@ from quart import Blueprint, jsonify, request, websocket, current_app
 from app.system.system_info import SystemInfo
 import asyncio
 import os
+import json
 import pty
 import fcntl
 import termios
@@ -89,122 +90,6 @@ async def test_server(server_id):
     sm = get_server_manager()
     result = await sm.test_server_connection(server_id)
     return jsonify(result)
-
-@api_bp.websocket("/servers/<server_id>/terminal")
-async def server_terminal_ws(server_id):
-    """Session de terminal interactif bidirectionnel en temps réel (WebSocket)."""
-    sm = get_server_manager()
-    srv = sm.get_server(server_id)
-    if not srv:
-        await websocket.send("Erreur: Serveur introuvable.\r\n")
-        return
-
-    # 1. CAS SERVEUR LOCAL : Pseudo-terminal pty natif
-    if srv.get("type") == "local" or server_id == "local":
-        master_fd, slave_fd = pty.openpty()
-
-        env = os.environ.copy()
-        env["TERM"] = "xterm-256color"
-        env["COLORTERM"] = "truecolor"
-
-        proc = await asyncio.create_subprocess_exec(
-            "/bin/bash",
-            stdin=slave_fd,
-            stdout=slave_fd,
-            stderr=slave_fd,
-            env=env,
-            close_fds=True
-        )
-        os.close(slave_fd)
-
-        # Définir master_fd en mode non-bloquant
-        flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)
-        fcntl.fcntl(master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
-
-        loop = asyncio.get_event_loop()
-
-        async def pty_reader():
-            while True:
-                try:
-                    await asyncio.sleep(0.02)
-                    data = await loop.run_in_executor(None, lambda: os.read(master_fd, 4096) if master_fd else b"")
-                    if data:
-                        await websocket.send(data.decode("utf-8", errors="replace"))
-                except (OSError, asyncio.CancelledError):
-                    break
-                except Exception:
-                    break
-
-        reader_task = asyncio.create_task(pty_reader())
-
-        try:
-            while True:
-                msg = await websocket.receive()
-                if msg is None:
-                    break
-                os.write(master_fd, msg.encode("utf-8", errors="replace"))
-        except (asyncio.CancelledError, Exception):
-            pass
-        finally:
-            reader_task.cancel()
-            try:
-                os.close(master_fd)
-            except Exception:
-                pass
-            try:
-                proc.terminate()
-            except Exception:
-                pass
-
-    # 2. CAS SERVEUR DISTANT SSH : asyncssh interactive session
-    else:
-        executor = sm.get_executor(server_id)
-        if not await executor.is_connected():
-            connected = await executor.connect()
-            if not connected:
-                await websocket.send(f"\r\n❌ Impossible d'ouvrir la connexion SSH à {srv.get('host')}\r\n")
-                return
-
-        conn = getattr(executor, "_conn", None)
-        if not conn:
-            await websocket.send("\r\n❌ Connexion SSH indisponible.\r\n")
-            return
-
-        try:
-            chan, session = await conn.create_session(
-                asyncssh.SSHClientSession,
-                term_type="xterm-256color",
-                term_size=(80, 24)
-            )
-
-            async def ssh_reader():
-                while True:
-                    try:
-                        data = await session.read(4096)
-                        if not data:
-                            break
-                        await websocket.send(str(data))
-                    except Exception:
-                        break
-
-            ssh_task = asyncio.create_task(ssh_reader())
-
-            try:
-                while True:
-                    msg = await websocket.receive()
-                    if msg is None:
-                        break
-                    session.write(msg)
-            except Exception:
-                pass
-            finally:
-                ssh_task.cancel()
-                try:
-                    chan.close()
-                except Exception:
-                    pass
-        except Exception as e:
-            await websocket.send(f"\r\n❌ Erreur session interactive SSH: {str(e)}\r\n")
 
 
 
@@ -354,9 +239,29 @@ async def upload_file(server_id):
 
     return jsonify({"success": True, "file_path": local_path, "filename": file.filename})
 
+@api_bp.route("/servers/<server_id>/sudo-password", methods=["POST"])
+async def set_server_sudo_pwd(server_id):
+    """Enregistre ou valide le mot de passe sudo pour un serveur."""
+    data = await request.get_json() or {}
+    password = data.get("password", "")
+    save = data.get("save", True)
+
+    sm = get_server_manager()
+    srv = sm.get_server(server_id)
+    if not srv:
+        return jsonify({"success": False, "message": "Serveur non trouvé."}), 404
+
+    sm.set_server_sudo_password(server_id, password, save=save)
+    executor = sm.get_executor(server_id)
+    code, stdout, stderr = await executor.run_sudo("whoami", timeout=5.0)
+    if code != 0:
+        return jsonify({"success": False, "message": "Mot de passe sudo incorrect ou privilèges refusés."}), 400
+
+    return jsonify({"success": True, "message": "Mot de passe sudo validé avec succès."})
+
 @api_bp.route("/servers/<server_id>/installers/<installer_name>/install", methods=["POST"])
 async def launch_installation(server_id, installer_name):
-    """Lance une tâche d'installation en arrière-plan avec support des paramètres optionnels."""
+    """Lance une tâche d'installation en arrière-plan avec support des paramètres optionnels et contrôle sudo."""
     installers_map = get_installers_map()
     installer = installers_map.get(installer_name)
 
@@ -374,6 +279,26 @@ async def launch_installation(server_id, installer_name):
     options = {}
     if request.is_json:
         options = await request.get_json() or {}
+
+    # 1. Vérification / Définition du mot de passe sudo fourni dans la requête
+    sudo_password = options.get("sudo_password")
+    save_password = options.get("save_password", False)
+
+    if sudo_password:
+        sm.set_server_sudo_password(server_id, sudo_password, save=save_password)
+    else:
+        # Si aucun mot de passe sudo n'est configuré et que sudo n'est pas déjà prêt
+        configured_pwd = getattr(executor, "sudo_password", None) or getattr(executor, "password", None)
+        if not configured_pwd:
+            sudo_code, _, _ = await executor.run_sudo("whoami", timeout=4.0)
+            if sudo_code != 0:
+                return jsonify({
+                    "success": False,
+                    "requires_sudo": True,
+                    "server_id": server_id,
+                    "server_name": srv.get("name", server_id),
+                    "message": "Privilèges administrateur (sudo) requis pour cette installation."
+                }), 200
 
     async def task_coro(task_progress):
         await installer.install(executor, task_progress, **options)
@@ -394,6 +319,15 @@ async def get_task_status(task_id):
     if not task:
         return jsonify({"success": False, "message": "Tâche non trouvée."}), 404
     return jsonify({"success": True, "task": task})
+
+@api_bp.route("/tasks/<task_id>/cancel", methods=["POST"])
+async def cancel_task(task_id):
+    """Interrompt une tâche d'arrière-plan en cours d'exécution."""
+    tm = get_task_manager()
+    success = tm.cancel_task(task_id)
+    if not success:
+        return jsonify({"success": False, "message": "Impossible d'interrompre la tâche (inexistante ou déjà terminée)."}), 400
+    return jsonify({"success": True, "message": "Tâche interrompue avec succès."})
 
 @api_bp.route("/tasks", methods=["GET"])
 async def list_tasks():

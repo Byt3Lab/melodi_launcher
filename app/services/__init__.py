@@ -5,11 +5,7 @@ from .melodi_service import MelodiService
 from .service_manager import ServiceManager
 from .postgresql import PostgreSQLService
 from .redis import RedisService
-from .nginx import NginxService
-from .docker import DockerService
-from .minio import MinioService
 from .pgadmin import PgAdminService
-from .postfix import PostfixService
 
 __all__ = [
     "BaseService",
@@ -19,9 +15,5 @@ __all__ = [
     "ServiceManager",
     "PostgreSQLService",
     "RedisService",
-    "NginxService",
-    "DockerService",
-    "MinioService",
-    "PgAdminService",
-    "PostfixService"
+    "PgAdminService"
 ]

@@ -1,83 +1,118 @@
 {% extends "base.html" %}
 
 {% block title %}Dashboard - MELODI Control Center{% endblock %}
-{% block header_title %}Vue d'ensemble du Control Center{% endblock %}
+{% block header_title %}Tableau de bord{% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto space-y-8" x-data="dashboardComponent()">
+<div class="max-w-6xl mx-auto space-y-6 sm:space-y-8" x-data="dashboardComponent()">
 
-    <!-- Welcome Banner -->
-    <div class="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-8 rounded-2xl border border-slate-800 shadow-xl flex items-center justify-between">
+    <!-- Welcome & Quick Action Banner -->
+    <div class="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6 sm:p-8 rounded-2xl border border-slate-800 shadow-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
         <div class="space-y-2">
-            <h3 class="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
-                <span x-text="serverName"></span>
-                <span class="text-xs px-3 py-1 rounded-full font-semibold border bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-                    <span>● Connecté</span>
+            <div class="flex items-center gap-2.5 flex-wrap">
+                <h3 class="text-xl sm:text-2xl font-bold tracking-tight text-white" x-text="serverName"></h3>
+                <span class="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-semibold border bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-green"></span>
+                    <span>Connecté</span>
                 </span>
-            </h3>
-            <p class="text-slate-400 text-sm">Gestion centralisée des services et des ressources système.</p>
+            </div>
+            <p class="text-slate-400 text-xs sm:text-sm">Centre d'administration simple et rapide pour l'écosystème MELODI ERP.</p>
         </div>
 
-        <a href="/installation" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shadow-lg transition-all">
-            <span>Nouvelle Installation</span>
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-            </svg>
-        </a>
+        <div class="flex items-center gap-3">
+            <a href="/installation" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg shadow-emerald-600/20 hover:shadow-emerald-500/30 transition-all active:scale-[0.98]">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                <span>Installer MELODI</span>
+            </a>
+        </div>
     </div>
 
-    <!-- Quick Metrics Summary -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-1">
-            <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">CPU</span>
-            <p class="text-2xl font-extrabold font-mono text-slate-100" x-text="(metrics.cpu_percent || 0) + '%'"></p>
+    <!-- Quick Metrics Summary (Responsive 2 cols on mobile, 4 cols on desktop) -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div class="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-slate-800/80 hover:border-slate-700/80 transition-all space-y-1">
+            <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Charge CPU</span>
+            <p class="text-xl sm:text-2xl font-extrabold font-mono text-slate-100" x-text="(metrics.cpu_percent || 0) + '%'"></p>
+            <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden mt-2 border border-slate-800">
+                <div class="h-1.5 rounded-full bg-emerald-500 transition-all duration-300" :style="'width: ' + (metrics.cpu_percent || 0) + '%'"></div>
+            </div>
         </div>
 
-        <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-1">
-            <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">RAM</span>
-            <p class="text-2xl font-extrabold font-mono text-indigo-400" x-text="(metrics.ram_percent || 0) + '%'"></p>
+        <div class="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-slate-800/80 hover:border-slate-700/80 transition-all space-y-1">
+            <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Mémoire RAM</span>
+            <p class="text-xl sm:text-2xl font-extrabold font-mono text-indigo-400" x-text="(metrics.ram_percent || 0) + '%'"></p>
+            <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden mt-2 border border-slate-800">
+                <div class="h-1.5 rounded-full bg-indigo-500 transition-all duration-300" :style="'width: ' + (metrics.ram_percent || 0) + '%'"></div>
+            </div>
         </div>
 
-        <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-1">
-            <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Disque</span>
-            <p class="text-2xl font-extrabold font-mono text-teal-400" x-text="(metrics.disk_percent || 0) + '%'"></p>
+        <div class="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-slate-800/80 hover:border-slate-700/80 transition-all space-y-1">
+            <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Disque (/)</span>
+            <p class="text-xl sm:text-2xl font-extrabold font-mono text-teal-400" x-text="(metrics.disk_percent || 0) + '%'"></p>
+            <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden mt-2 border border-slate-800">
+                <div class="h-1.5 rounded-full bg-teal-500 transition-all duration-300" :style="'width: ' + (metrics.disk_percent || 0) + '%'"></div>
+            </div>
         </div>
 
-        <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-1">
-            <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Uptime</span>
-            <p class="text-2xl font-extrabold font-mono text-emerald-400 truncate" x-text="metrics.uptime_formatted || '-'"></p>
+        <div class="bg-slate-950 p-4 sm:p-5 rounded-2xl border border-slate-800/80 hover:border-slate-700/80 transition-all space-y-1">
+            <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Uptime</span>
+            <p class="text-xl sm:text-2xl font-extrabold font-mono text-emerald-400 truncate" x-text="metrics.uptime_formatted || '-'"></p>
+            <p class="text-[10px] text-slate-500 font-mono mt-1">Disponibilité système</p>
         </div>
     </div>
 
     <!-- Managed Services Grid -->
-    <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-6">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-4">
-            <h4 class="font-bold text-slate-100 text-base">Services du Serveur</h4>
-            <a href="/services" class="text-xs text-emerald-400 hover:underline font-medium">Gérer tous les services &rarr;</a>
+    <div class="bg-slate-950 p-5 sm:p-6 rounded-2xl border border-slate-800 space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-800/80 pb-4">
+            <div>
+                <h4 class="font-bold text-slate-100 text-base">État des Services Principaux</h4>
+                <p class="text-xs text-slate-400">Services nécessaires à l'exécution de MELODI ERP.</p>
+            </div>
+            <a href="/services" class="text-xs text-emerald-400 hover:text-emerald-300 font-semibold inline-flex items-center gap-1 transition-colors">
+                <span>Gérer tous les services</span>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </a>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <template x-for="srv in services" :key="srv.name">
-                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800/80 flex items-center justify-between">
+                <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div class="space-y-1">
                         <div class="flex items-center gap-2">
                             <h5 class="font-bold text-slate-100 text-sm" x-text="srv.display_name"></h5>
-                            <span class="text-[10px] px-2 py-0.5 rounded font-semibold border"
-                                  :class="srv.is_running ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-slate-800 text-slate-500 border-slate-700'"
-                                  x-text="srv.is_running ? '● Running' : '○ Stopped'"></span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full font-semibold border"
+                                  :class="srv.is_running ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : (srv.is_installed ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-rose-500/10 text-rose-400 border-rose-500/30')"
+                                  x-text="srv.status_text"></span>
                         </div>
-                        <p class="text-xs text-slate-400" x-text="srv.description"></p>
+                        <p class="text-xs text-slate-400 line-clamp-1" x-text="srv.description"></p>
                     </div>
 
-                    <div class="flex gap-1.5">
-                        <template x-if="!srv.is_running">
-                            <button @click="controlService(srv.name, 'start')" class="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow">Démarrer</button>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <template x-if="!srv.is_installed">
+                            <a :href="'/installation/' + srv.name" 
+                               class="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition-all">
+                                Installer
+                            </a>
                         </template>
 
-                        <template x-if="srv.is_running">
+                        <template x-if="srv.is_installed && !srv.is_running">
+                            <button @click="controlService(srv.name, 'start')" 
+                                    class="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition-all">
+                                Démarrer
+                            </button>
+                        </template>
+
+                        <template x-if="srv.is_installed && srv.is_running">
                             <div class="flex gap-1.5">
-                                <button @click="controlService(srv.name, 'stop')" class="py-1.5 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow">Arrêter</button>
-                                <button @click="controlService(srv.name, 'restart')" class="py-1.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shadow">Redémarrer</button>
+                                <button @click="controlService(srv.name, 'stop')" 
+                                        class="py-1.5 px-2.5 rounded-lg bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-semibold shadow transition-all">
+                                    Arrêter
+                                </button>
+                                <button @click="controlService(srv.name, 'restart')" 
+                                        class="py-1.5 px-2.5 rounded-lg bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-semibold shadow transition-all">
+                                    Redémarrer
+                                </button>
                             </div>
                         </template>
                     </div>

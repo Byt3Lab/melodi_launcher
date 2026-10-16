@@ -16,21 +16,13 @@ from app.remote.credential_manager import CredentialManager
 from app.services.melodi import MelodiService
 from app.services.postgresql import PostgreSQLService
 from app.services.redis import RedisService
-from app.services.nginx import NginxService
-from app.services.docker import DockerService
-from app.services.minio import MinioService
 from app.services.pgadmin import PgAdminService
-from app.services.postfix import PostfixService
 
 # Installers
 from app.installers.melodi import MelodiInstaller
 from app.installers.postgresql import PostgreSQLInstaller
 from app.installers.redis import RedisInstaller
-from app.installers.nginx import NginxInstaller
-from app.installers.docker import DockerInstaller
-from app.installers.minio import MinioInstaller
 from app.installers.pgadmin import PgAdminInstaller
-from app.installers.postfix import PostfixInstaller
 
 # Routes
 from app.routes.web import web_bp
@@ -72,11 +64,7 @@ def create_app(config_file_path: str = None) -> Quart:
         "melodi": MelodiService(settings_manager, process_manager),
         "postgresql": PostgreSQLService(),
         "redis": RedisService(),
-        "nginx": NginxService(),
-        "docker": DockerService(),
-        "minio": MinioService(),
-        "pgadmin": PgAdminService(),
-        "postfix": PostfixService()
+        "pgadmin": PgAdminService()
     }
     app.config["SERVICES_MAP"] = services_map
 
@@ -85,11 +73,7 @@ def create_app(config_file_path: str = None) -> Quart:
         "melodi": MelodiInstaller(),
         "postgresql": PostgreSQLInstaller(),
         "redis": RedisInstaller(),
-        "nginx": NginxInstaller(),
-        "docker": DockerInstaller(),
-        "minio": MinioInstaller(),
-        "pgadmin": PgAdminInstaller(),
-        "postfix": PostfixInstaller()
+        "pgadmin": PgAdminInstaller()
     }
     app.config["INSTALLERS_MAP"] = installers_map
 

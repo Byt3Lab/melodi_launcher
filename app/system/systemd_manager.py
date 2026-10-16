@@ -2,7 +2,7 @@
 SystemdManager: Abstraction for managing Linux systemd services (start, stop, status, logs).
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Callable
 from app.remote.executor import Executor
 
 class SystemdManager:
@@ -19,27 +19,27 @@ class SystemdManager:
         return code == 0 and service_name in stdout
 
     @staticmethod
-    async def start(executor: Executor, service_name: str) -> Dict[str, Any]:
+    async def start(executor: Executor, service_name: str, on_output: Optional[Callable[[str], None]] = None) -> Dict[str, Any]:
         """Démarrer un service systemd via run_sudo."""
-        code, stdout, stderr = await executor.run_sudo(f"systemctl start {service_name}")
+        code, stdout, stderr = await executor.run_sudo(f"systemctl start {service_name}", on_output=on_output)
         return {
             "success": code == 0,
             "message": f"Service '{service_name}' démarré." if code == 0 else f"Échec au démarrage de '{service_name}': {stderr.strip()}"
         }
 
     @staticmethod
-    async def stop(executor: Executor, service_name: str) -> Dict[str, Any]:
+    async def stop(executor: Executor, service_name: str, on_output: Optional[Callable[[str], None]] = None) -> Dict[str, Any]:
         """Arrêter un service systemd via run_sudo."""
-        code, stdout, stderr = await executor.run_sudo(f"systemctl stop {service_name}")
+        code, stdout, stderr = await executor.run_sudo(f"systemctl stop {service_name}", on_output=on_output)
         return {
             "success": code == 0,
             "message": f"Service '{service_name}' arrêté." if code == 0 else f"Échec de l'arrêt de '{service_name}': {stderr.strip()}"
         }
 
     @staticmethod
-    async def restart(executor: Executor, service_name: str) -> Dict[str, Any]:
+    async def restart(executor: Executor, service_name: str, on_output: Optional[Callable[[str], None]] = None) -> Dict[str, Any]:
         """Redémarrer un service systemd via run_sudo."""
-        code, stdout, stderr = await executor.run_sudo(f"systemctl restart {service_name}")
+        code, stdout, stderr = await executor.run_sudo(f"systemctl restart {service_name}", on_output=on_output)
         return {
             "success": code == 0,
             "message": f"Service '{service_name}' redémarré." if code == 0 else f"Échec du redémarrage de '{service_name}': {stderr.strip()}"

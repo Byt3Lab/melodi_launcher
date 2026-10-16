@@ -5,6 +5,7 @@ Runs the ASGI app with Hypercorn.
 """
 
 import asyncio
+import os
 import sys
 from hypercorn.config import Config
 from hypercorn.asyncio import serve
@@ -14,8 +15,8 @@ app = create_app()
 
 def main():
     settings = app.config["SETTINGS"]
-    host = settings.get("server", "host", "127.0.0.1")
-    port = settings.get("server", "port", 4000)
+    host = os.environ.get("MELODI_HOST", settings.get("server", "host", "127.0.0.1"))
+    port = os.environ.get("MELODI_PORT", settings.get("server", "port", 4000))
     debug = settings.get("server", "debug", False)
 
     config = Config()

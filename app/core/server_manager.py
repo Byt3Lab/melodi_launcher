@@ -52,7 +52,8 @@ class ServerManager:
 
         # Instancier l'exécuteur local avec mot de passe éventuel
         local_srv = self._servers.get("local", {})
-        self._executors["local"] = LocalExecutor(password=local_srv.get("password"))
+        local_pass = local_srv.get("sudo_password") or local_srv.get("password")
+        self._executors["local"] = LocalExecutor(password=local_pass)
 
 
     def save(self) -> bool:
@@ -81,23 +82,42 @@ class ServerManager:
 
         srv = self.get_server(server_id)
         if not srv or srv.get("type") == "local":
-            password = srv.get("password") if srv else None
+            password = (srv.get("sudo_password") or srv.get("password")) if srv else None
             executor = LocalExecutor(password=password)
         else:
-
             auth_method = srv.get("auth_method", "key")
             key_path = srv.get("key_path") if auth_method == "key" or not srv.get("auth_method") else None
-            password = srv.get("password") if auth_method == "password" else None
+            ssh_password = srv.get("password") if auth_method == "password" else None
+            sudo_password = srv.get("sudo_password") or srv.get("password")
 
             executor = SSHExecutor(
                 host=srv.get("host", "127.0.0.1"),
                 port=srv.get("port", 22),
                 username=srv.get("username", "root"),
                 key_path=key_path,
-                password=password
+                password=ssh_password,
+                sudo_password=sudo_password
             )
         self._executors[server_id] = executor
         return executor
+
+    def set_server_sudo_password(self, server_id: str, sudo_password: str, save: bool = True) -> bool:
+        """Définit le mot de passe sudo pour le serveur et synchronise l'exécuteur."""
+        srv = self.get_server(server_id)
+        if not srv:
+            return False
+
+        srv["sudo_password"] = sudo_password
+        srv["password"] = sudo_password
+
+        if server_id in self._executors:
+            executor = self._executors[server_id]
+            executor.sudo_password = sudo_password
+            executor.password = sudo_password
+
+        if save:
+            self.save()
+        return True
 
     def add_server(self, server_data: Dict[str, Any]) -> Dict[str, Any]:
         """Ajoute un nouveau serveur distant."""

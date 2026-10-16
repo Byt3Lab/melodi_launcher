@@ -22,3 +22,34 @@ async def test_task_manager_execution():
     status = tm.get_task(task.task_id)
     assert status["status"] == "SUCCESS"
     assert status["progress"] == 100
+
+@pytest.mark.asyncio
+async def test_task_manager_cancellation():
+    tm = TaskManager()
+
+    cancelled_event = asyncio.Event()
+
+    async def long_running_job(task: TaskProgress):
+        task.update(10, "Démarrage job long...")
+        try:
+            await asyncio.sleep(10.0)
+        except asyncio.CancelledError:
+            cancelled_event.set()
+            raise
+
+    task = tm.create_task("Long Job", "local", long_running_job)
+    assert task.task_id is not None
+
+    await asyncio.sleep(0.05)
+    status = tm.get_task(task.task_id)
+    assert status["status"] == "RUNNING"
+
+    # Annulation
+    cancelled = tm.cancel_task(task.task_id)
+    assert cancelled is True
+
+    await asyncio.sleep(0.05)
+    status_after = tm.get_task(task.task_id)
+    assert status_after["status"] == "CANCELLED"
+    assert cancelled_event.is_set()
+    assert any("interrompue" in log.lower() for log in status_after["logs"])

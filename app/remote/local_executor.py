@@ -4,14 +4,14 @@ LocalExecutor: Implémentation de Executor pour la machine locale hôte.
 
 import asyncio
 import time
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, Optional, Callable
 from app.remote.executor import Executor
 
 class LocalExecutor(Executor):
     def __init__(self, password: str = None):
         super().__init__(name="Localhost")
         self.password = password
-
+        self.sudo_password = password
 
     async def connect(self) -> bool:
         return True
@@ -22,27 +22,70 @@ class LocalExecutor(Executor):
     async def is_connected(self) -> bool:
         return True
 
-    async def run(self, command: str, timeout: float = 30.0) -> Tuple[int, str, str]:
-        """Exécute une commande shell locale de manière asynchrone."""
+    async def run(
+        self,
+        command: str,
+        timeout: Optional[float] = None,
+        on_output: Optional[Callable[[str], None]] = None
+    ) -> Tuple[int, str, str]:
+        """Exécute une commande shell locale de manière asynchrone avec streaming temps réel."""
         try:
             process = await asyncio.create_subprocess_shell(
                 command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
+
+            stdout_lines: list[str] = []
+            stderr_lines: list[str] = []
+
+            async def _stream_reader(stream, accumulator: list[str]):
+                while True:
+                    line = await stream.readline()
+                    if not line:
+                        break
+                    decoded = line.decode("utf-8", errors="replace")
+                    accumulator.append(decoded)
+                    if on_output:
+                        try:
+                            clean_line = decoded.rstrip("\r\n")
+                            if clean_line:
+                                on_output(clean_line)
+                        except Exception:
+                            pass
+
             try:
-                stdout_data, stderr_data = await asyncio.wait_for(process.communicate(), timeout=timeout)
+                gather_coro = asyncio.gather(
+                    _stream_reader(process.stdout, stdout_lines),
+                    _stream_reader(process.stderr, stderr_lines),
+                    process.wait()
+                )
+                if timeout is not None and timeout > 0:
+                    await asyncio.wait_for(gather_coro, timeout=timeout)
+                else:
+                    await gather_coro
+
                 return (
                     process.returncode or 0,
-                    stdout_data.decode("utf-8", errors="replace"),
-                    stderr_data.decode("utf-8", errors="replace")
+                    "".join(stdout_lines),
+                    "".join(stderr_lines)
                 )
             except asyncio.TimeoutError:
                 try:
                     process.kill()
+                    await process.wait()
                 except Exception:
                     pass
-                return (-1, "", f"Timeout de la commande après {timeout}s")
+                return (-1, "".join(stdout_lines), f"Timeout de la commande après {timeout}s")
+            except asyncio.CancelledError:
+                try:
+                    process.kill()
+                    await process.wait()
+                except Exception:
+                    pass
+                raise
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             return (-1, "", f"Erreur d'exécution locale: {str(e)}")
 

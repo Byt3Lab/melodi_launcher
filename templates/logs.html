@@ -1,72 +1,72 @@
 {% extends "base.html" %}
 
-{% block title %}Logs - MELODI Launcher{% endblock %}
-{% block header_title %}Console de Log en Temps Réel{% endblock %}
+{% block title %}Logs - MELODI Control Center{% endblock %}
+{% block header_title %}Console des Journaux (Logs) en Temps Réel{% endblock %}
 
 {% block content %}
 <div class="max-w-6xl mx-auto h-full flex flex-col space-y-4" x-data="logsComponent()">
 
     <!-- Header Controls -->
-    <div class="flex flex-wrap items-center justify-between gap-4 bg-slate-950 p-4 rounded-xl border border-slate-800">
-        <div class="flex items-center gap-4">
-            <div class="flex items-center gap-2 text-sm text-slate-300 font-medium">
-                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-lg">
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 text-xs sm:text-sm text-slate-200 font-semibold">
+                <svg class="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                 </svg>
-                <span>Console stdout/stderr</span>
+                <span>Flux applicatif stdout / stderr</span>
             </div>
 
-            <div class="text-xs text-slate-500 font-mono">
-                <span x-text="'Taille: ' + (logInfo.size_kb || 0) + ' KB'"></span>
+            <div class="text-[11px] text-slate-500 font-mono">
+                <span x-text="'Taille : ' + (logInfo.size_kb || 0) + ' KB'"></span>
             </div>
         </div>
 
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-2 sm:gap-2.5">
             <!-- Lines Selector -->
-            <select x-model="linesCount" @change="fetchLogs()" class="bg-slate-900 border border-slate-700 text-xs rounded-lg px-3 py-2 text-slate-200 focus:ring-1 focus:ring-emerald-500">
+            <select x-model="linesCount" @change="fetchLogs()" class="bg-slate-900 border border-slate-800 text-xs rounded-xl px-2.5 py-2 text-slate-200 focus:ring-1 focus:ring-emerald-500 font-medium">
                 <option value="100">100 lignes</option>
                 <option value="200">200 lignes</option>
                 <option value="500">500 lignes</option>
             </select>
 
             <!-- Auto-scroll Toggle -->
-            <label class="flex items-center gap-2 text-xs text-slate-300 select-none cursor-pointer bg-slate-900 px-3 py-2 rounded-lg border border-slate-800">
-                <input type="checkbox" x-model="autoScroll" class="rounded border-slate-700 text-emerald-600 focus:ring-emerald-500">
-                <span>Auto-scroll</span>
+            <label class="flex items-center gap-2 text-xs text-slate-300 select-none cursor-pointer bg-slate-900 px-3 py-2 rounded-xl border border-slate-800 hover:border-slate-700 transition-colors">
+                <input type="checkbox" x-model="autoScroll" class="rounded border-slate-700 text-emerald-500 focus:ring-emerald-500">
+                <span class="text-[11px] font-medium">Auto-scroll</span>
             </label>
 
             <!-- Refresh Button -->
-            <button @click="fetchLogs()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-colors" title="Actualiser">
+            <button @click="fetchLogs()" class="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-colors" title="Actualiser manuellement">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                 </svg>
             </button>
 
             <!-- Clear Logs Button -->
-            <button @click="clearLogs()" class="px-3 py-2 rounded-lg bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-rose-300 text-xs font-medium transition-colors">
-                Effacer les logs
+            <button @click="clearLogs()" class="px-3 py-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/60 text-rose-300 text-xs font-medium transition-colors">
+                Effacer
             </button>
         </div>
     </div>
 
-    <!-- Terminal Box -->
-    <div id="terminalContainer" class="flex-1 bg-slate-950 p-6 rounded-2xl border border-slate-800 font-mono text-xs overflow-y-auto space-y-1 select-text shadow-2xl min-h-[450px]">
+    <!-- Terminal Output Box -->
+    <div id="terminalContainer" class="flex-1 bg-[#020617] p-4 sm:p-6 rounded-2xl border border-slate-800 font-mono text-xs overflow-y-auto space-y-1 select-text shadow-2xl min-h-[350px] sm:min-h-[480px]">
         <template x-for="(line, idx) in logs" :key="idx">
-            <div class="flex gap-3 leading-relaxed hover:bg-slate-900/60 rounded px-2 py-0.5">
-                <span class="text-slate-600 select-none w-8 text-right font-mono" x-text="idx + 1"></span>
+            <div class="flex gap-2.5 sm:gap-3 leading-relaxed hover:bg-slate-900/60 rounded px-1.5 py-0.5">
+                <span class="text-slate-600 select-none w-7 sm:w-8 text-right font-mono text-[10px] sm:text-xs shrink-0" x-text="idx + 1"></span>
                 <span class="flex-1 whitespace-pre-wrap break-all"
                       :class="{
-                          'text-emerald-400 font-semibold': line.includes('===') || line.includes('SUCCESS'),
-                          'text-rose-400 font-semibold': line.includes('Error') || line.includes('FAILED') || line.includes('Traceback'),
-                          'text-amber-300': line.includes('WARNING') || line.includes('Warning'),
-                          'text-slate-300': !line.includes('===') && !line.includes('Error') && !line.includes('WARNING')
+                          'text-emerald-400 font-semibold': line.includes('===') || line.includes('SUCCESS') || line.includes('✓'),
+                          'text-rose-400 font-semibold': line.includes('Error') || line.includes('FAILED') || line.includes('Traceback') || line.includes('❌'),
+                          'text-amber-300 font-medium': line.includes('WARNING') || line.includes('Warning'),
+                          'text-slate-300': !line.includes('===') && !line.includes('Error') && !line.includes('WARNING') && !line.includes('✓') && !line.includes('❌')
                       }"
                       x-text="line"></span>
             </div>
         </template>
         <template x-if="logs.length === 0">
-            <div class="h-full flex items-center justify-center text-slate-500 italic py-12">
-                Aucune entrée de log disponible...
+            <div class="h-full flex items-center justify-center text-slate-500 italic py-16 text-center text-xs">
+                Aucun journal d'activité enregistré pour le moment...
             </div>
         </template>
     </div>
@@ -108,6 +108,8 @@
                     if (data.success) {
                         this.logs = [];
                         await this.fetchLogs();
+                    } else {
+                        alert(data.message);
                     }
                 } catch (e) {
                     alert("Erreur lors de l'effacement des logs.");

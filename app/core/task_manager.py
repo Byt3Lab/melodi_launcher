@@ -33,6 +33,26 @@ class TaskProgress:
         timestamp = time.strftime("%H:%M:%S")
         self.logs.append(f"[{timestamp}] ❌ ERREUR: {error_message}")
 
+    def cancel(self, message: str = "Tâche interrompue par l'utilisateur."):
+        self.status = "CANCELLED"
+        self.error = message
+        self.finished_at = time.time()
+        timestamp = time.strftime("%H:%M:%S")
+        self.logs.append(f"[{timestamp}] ⏹️ {message}")
+
+    def append_log(self, text: str):
+        """Ajoute des sorties brutes de commandes ou terminal en direct."""
+        if not text:
+            return
+        lines = text.splitlines() if "\n" in text else [text]
+        for line in lines:
+            cleaned = line.rstrip("\r\n")
+            if cleaned:
+                self.logs.append(cleaned)
+        # Conserver un historique borné pour éviter l'épuisement mémoire
+        if len(self.logs) > 2000:
+            self.logs = self.logs[-2000:]
+
     def complete(self, message: str = "Tâche terminée avec succès."):
         self.status = "SUCCESS"
         self.progress = 100
@@ -59,6 +79,7 @@ class TaskProgress:
 class TaskManager:
     def __init__(self):
         self._tasks: Dict[str, TaskProgress] = {}
+        self._async_tasks: Dict[str, asyncio.Task] = {}
 
     def create_task(self, name: str, server_id: str, async_func: Callable[[TaskProgress], Any]) -> TaskProgress:
         """Crée et lance une tâche asynchrone en arrière-plan."""
@@ -67,7 +88,8 @@ class TaskManager:
         self._tasks[task_id] = task_progress
 
         # Lancer le coroutine worker en tâche asyncio de fond
-        asyncio.create_task(self._run_task_wrapper(task_progress, async_func))
+        async_task = asyncio.create_task(self._run_task_wrapper(task_progress, async_func))
+        self._async_tasks[task_id] = async_task
         return task_progress
 
     async def _run_task_wrapper(self, task_progress: TaskProgress, async_func: Callable[[TaskProgress], Any]):
@@ -76,9 +98,27 @@ class TaskManager:
             await async_func(task_progress)
             if task_progress.status == "RUNNING":
                 task_progress.complete()
+        except asyncio.CancelledError:
+            print(f"[TaskManager] Task {task_progress.task_id} was cancelled")
+            if task_progress.status != "CANCELLED":
+                task_progress.cancel("Opération interrompue par l'utilisateur.")
         except Exception as e:
             print(f"[TaskManager] Error in task {task_progress.task_id}: {e}")
             task_progress.fail(str(e))
+        finally:
+            self._async_tasks.pop(task_progress.task_id, None)
+
+    def cancel_task(self, task_id: str) -> bool:
+        """Interrompt une tâche en cours d'exécution."""
+        task_progress = self._tasks.get(task_id)
+        if not task_progress or task_progress.status not in ("PENDING", "RUNNING"):
+            return False
+
+        task_progress.cancel("Opération interrompue par l'utilisateur.")
+        async_task = self._async_tasks.get(task_id)
+        if async_task and not async_task.done():
+            async_task.cancel()
+        return True
 
     def get_task(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Retourne l'état d'une tâche."""

@@ -4,32 +4,36 @@
 {% block header_title %}Gestionnaire des Services Système{% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto space-y-8" x-data="servicesComponent()">
+<div class="max-w-6xl mx-auto space-y-6 sm:space-y-8" x-data="servicesComponent()">
 
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-            <h3 class="text-xl font-bold text-white">Services Administrés</h3>
-            <p class="text-sm text-slate-400">Contrôlez l'état des composants MELODI ERP, PostgreSQL, Redis, Nginx et Celery.</p>
+            <h3 class="text-xl sm:text-2xl font-bold text-white tracking-tight">Services Administrés</h3>
+            <p class="text-xs sm:text-sm text-slate-400">Contrôlez l'état et l'exécution des composants MELODI ERP, PostgreSQL, Redis et pgAdmin.</p>
+        </div>
+        <div class="flex items-center gap-2 self-start sm:self-auto">
+            <span class="text-xs text-slate-400">Actualisation en temps réel</span>
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
         </div>
     </div>
 
     <!-- Active Services Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <template x-for="service in services" :key="service.name">
-            <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5 flex flex-col justify-between">
+            <div class="bg-slate-950 p-5 sm:p-6 rounded-2xl border border-slate-800 hover:border-slate-700/80 transition-all space-y-5 flex flex-col justify-between shadow-lg">
                 <div class="space-y-3">
-                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between gap-2">
                         <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 text-emerald-400 flex items-center justify-center font-bold text-sm">
+                            <div class="w-11 h-11 rounded-xl bg-slate-900 border border-slate-800 text-emerald-400 flex items-center justify-center font-bold text-sm shadow-inner shrink-0">
                                 <span x-text="service.name.substring(0, 2).toUpperCase()"></span>
                             </div>
                             <div>
-                                <h4 class="font-bold text-slate-100 text-lg" x-text="service.display_name"></h4>
-                                <span class="text-xs text-slate-400 font-mono" x-text="service.port ? 'Port: ' + service.port : 'Systemd Service'"></span>
+                                <h4 class="font-bold text-slate-100 text-base sm:text-lg" x-text="service.display_name"></h4>
+                                <span class="text-xs text-slate-400 font-mono" x-text="service.port ? 'Port ' + service.port : 'Service systemd'"></span>
                             </div>
                         </div>
 
-                        <span class="text-xs px-3 py-1 rounded-full font-semibold border"
+                        <span class="text-xs px-3 py-1 rounded-full font-semibold border shrink-0"
                               :class="service.is_running ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : (service.is_installed ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-rose-500/10 text-rose-400 border-rose-500/30')">
                             <span x-text="service.status_text"></span>
                         </span>
@@ -38,43 +42,46 @@
                     <p class="text-xs text-slate-400 leading-relaxed" x-text="service.description"></p>
                 </div>
 
-                <div class="flex gap-2 pt-2 border-t border-slate-800/60">
+                <div class="flex flex-wrap sm:flex-nowrap gap-2 pt-3 border-t border-slate-800/80">
                     <template x-if="!service.is_installed">
                         <a :href="'/installation/' + service.name" 
-                           class="flex-1 py-2.5 px-4 rounded-lg bg-emerald-700/80 hover:bg-emerald-600 text-white text-xs font-semibold shadow transition-all text-center flex items-center justify-center gap-1.5">
+                           class="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition-all text-center flex items-center justify-center gap-1.5 active:scale-[0.98]">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                             <span>Installer le service</span>
                         </a>
                     </template>
 
                     <template x-if="service.is_installed && !service.is_running">
-                        <div class="flex gap-2 flex-1">
+                        <div class="flex gap-2 w-full">
                             <button @click="controlService(service.name, 'start')" 
-                                    class="flex-1 py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition-all">
-                                Démarrer
+                                    :disabled="busyService === service.name"
+                                    class="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow transition-all disabled:opacity-50 active:scale-[0.98]">
+                                <span x-text="busyService === service.name ? 'Démarrage...' : 'Démarrer'"></span>
                             </button>
                             <a :href="'/installation/' + service.name" 
-                               class="py-2.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white text-xs transition-all flex items-center justify-center"
+                               class="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white text-xs transition-all flex items-center justify-center"
                                title="Assistant d'installation">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                             </a>
                         </div>
                     </template>
 
                     <template x-if="service.is_installed && service.is_running">
-                        <div class="flex gap-2 flex-1">
+                        <div class="flex gap-2 w-full">
                             <button @click="controlService(service.name, 'stop')" 
-                                    class="flex-1 py-2.5 px-4 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow transition-all">
-                                Arrêter
+                                    :disabled="busyService === service.name"
+                                    class="flex-1 py-2.5 px-3 rounded-xl bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-semibold shadow transition-all disabled:opacity-50 active:scale-[0.98]">
+                                <span x-text="busyService === service.name ? 'Arrêt...' : 'Arrêter'"></span>
                             </button>
                             <button @click="controlService(service.name, 'restart')" 
-                                    class="flex-1 py-2.5 px-4 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shadow transition-all">
-                                Redémarrer
+                                    :disabled="busyService === service.name"
+                                    class="flex-1 py-2.5 px-3 rounded-xl bg-amber-600/80 hover:bg-amber-600 text-white text-xs font-semibold shadow transition-all disabled:opacity-50 active:scale-[0.98]">
+                                <span x-text="busyService === service.name ? 'Redémarrage...' : 'Redémarrer'"></span>
                             </button>
                             <a :href="'/installation/' + service.name" 
-                               class="py-2.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white text-xs transition-all flex items-center justify-center"
+                               class="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white text-xs transition-all flex items-center justify-center"
                                title="Assistant d'installation">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                             </a>
                         </div>
                     </template>
@@ -88,9 +95,11 @@
     function servicesComponent() {
         return {
             services: [],
+            busyService: null,
+
             init() {
                 this.loadServices();
-                setInterval(() => this.loadServices(), 2000);
+                setInterval(() => this.loadServices(), 2500);
             },
             async loadServices() {
                 const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
@@ -104,13 +113,18 @@
             },
             async controlService(name, action) {
                 const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
+                this.busyService = name;
                 try {
                     const res = await fetch(`/api/servers/${activeServerId}/services/${name}/${action}`, { method: 'POST' });
                     const data = await res.json();
-                    alert(data.message);
+                    if (window.globalApp && typeof window.globalApp().showToast === 'function') {
+                        // Toast if available
+                    }
                     await this.loadServices();
                 } catch (e) {
                     alert("Erreur lors de la commande du service");
+                } finally {
+                    this.busyService = null;
                 }
             }
         }

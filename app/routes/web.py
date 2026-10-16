@@ -18,7 +18,7 @@ async def servers():
 
 @web_bp.route("/services")
 async def services():
-    """Vue détaillée des services (MELODI, PostgreSQL, Redis, Nginx)."""
+    """Vue détaillée des services (MELODI, PostgreSQL, Redis, pgAdmin)."""
     return await render_template("services.html", active_page="services")
 
 @web_bp.route("/installation")
@@ -29,7 +29,7 @@ async def installation():
 @web_bp.route("/installation/<service_name>")
 async def installation_service(service_name: str):
     """Page d'installation dédiée pour un service spécifique."""
-    valid_services = ["melodi", "postgresql", "redis", "nginx", "docker", "minio", "pgadmin", "postfix"]
+    valid_services = ["melodi", "postgresql", "redis", "pgadmin"]
     if service_name not in valid_services:
         return await render_template("installation.html", active_page="installation")
     
@@ -39,20 +39,10 @@ async def installation_service(service_name: str):
         service_name=service_name
     )
 
-@web_bp.route("/monitoring")
-async def monitoring():
-    """Surveillance des ressources système (CPU, RAM, Disque)."""
-    return await render_template("monitoring.html", active_page="monitoring")
-
 @web_bp.route("/logs")
 async def logs():
     """Console de visualisation des logs."""
     return await render_template("logs.html", active_page="logs")
-
-@web_bp.route("/terminal")
-async def terminal():
-    """Terminal web interactif temps réel (WebSocket PTY)."""
-    return await render_template("terminal.html", active_page="terminal")
 
 @web_bp.route("/settings")
 async def settings():

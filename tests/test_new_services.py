@@ -1,5 +1,5 @@
 """
-Tests for new Docker, MinIO, pgAdmin, Postfix, and ZIP deployment capabilities.
+Tests for pgAdmin and ZIP deployment capabilities.
 """
 
 import pytest
@@ -8,12 +8,8 @@ import tempfile
 import zipfile
 from app.application import create_app
 from app.remote.local_executor import LocalExecutor
-from app.system.docker_manager import DockerManager
 from app.installers.melodi import MelodiInstaller
-from app.installers.minio import MinioInstaller
 from app.installers.pgadmin import PgAdminInstaller
-from app.installers.postfix import PostfixInstaller
-from app.installers.docker import DockerInstaller
 
 @pytest.fixture
 def app():
@@ -24,17 +20,10 @@ async def test_services_and_installers_registered(app):
     services = app.config["SERVICES_MAP"]
     installers = app.config["INSTALLERS_MAP"]
 
-    expected = ["melodi", "postgresql", "redis", "nginx", "docker", "minio", "pgadmin", "postfix"]
+    expected = ["melodi", "postgresql", "redis", "pgadmin"]
     for name in expected:
         assert name in services, f"Service {name} doit être enregistré"
         assert name in installers, f"Installer {name} doit être enregistré"
-
-@pytest.mark.asyncio
-async def test_docker_manager_detection():
-    executor = LocalExecutor()
-    is_installed = await DockerManager.is_installed(executor)
-    # Docker est présent sur la machine de test
-    assert isinstance(is_installed, bool)
 
 @pytest.mark.asyncio
 async def test_upload_api_endpoint(app):

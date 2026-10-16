@@ -4,272 +4,218 @@
 {% block header_title %}Assistant d'Installation & Déploiement{% endblock %}
 
 {% block content %}
-<div class="max-w-6xl mx-auto space-y-8" x-data="installationComponent()">
+<div class="max-w-6xl mx-auto space-y-6 sm:space-y-8" x-data="installationComponent()">
 
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-            <h3 class="text-xl font-bold text-white">Installation des Composants</h3>
-            <p class="text-sm text-slate-400">Déployez les briques et services logiciels sur le serveur sélectionné (Hôte natif ou Docker).</p>
+            <h3 class="text-xl sm:text-2xl font-bold text-white tracking-tight">Composants & Déploiement</h3>
+            <p class="text-xs sm:text-sm text-slate-400">Installez et configurez directement MELODI ERP et ses briques logicielles sans complexité.</p>
+        </div>
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold self-start sm:self-auto">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span>Installation direct hôte (sans Docker)</span>
         </div>
     </div>
 
     <!-- Active Task Progress Bar (If Any Task is Running) -->
     <template x-if="activeTask">
-        <div class="bg-slate-950 p-6 rounded-2xl border border-emerald-500/40 shadow-xl space-y-4">
-            <div class="flex items-center justify-between">
+        <div class="bg-slate-950 p-5 sm:p-6 rounded-2xl border border-emerald-500/40 shadow-2xl space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h4 class="font-bold text-slate-100 text-base" x-text="activeTask.name"></h4>
-                    <p class="text-xs text-slate-400" x-text="activeTask.current_step"></p>
+                    <h4 class="font-bold text-slate-100 text-sm sm:text-base flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" x-show="activeTask.status === 'RUNNING'"></span>
+                        <span x-text="activeTask.name"></span>
+                    </h4>
+                    <p class="text-xs text-slate-400 mt-0.5" x-text="activeTask.current_step"></p>
                 </div>
 
-                <span class="text-xs px-3 py-1 rounded-full font-mono font-bold"
-                      :class="{
-                          'bg-amber-500/10 text-amber-400 border border-amber-500/30': activeTask.status === 'RUNNING',
-                          'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30': activeTask.status === 'SUCCESS',
-                          'bg-rose-500/10 text-rose-400 border border-rose-500/30': activeTask.status === 'FAILED'
-                      }"
-                      x-text="activeTask.status + ' (' + activeTask.progress + '%)'"></span>
+                <div class="flex items-center gap-2.5 self-end sm:self-auto">
+                    <button x-show="activeTask.status === 'RUNNING'"
+                            @click="cancelTask(activeTask.task_id)"
+                            :disabled="isCancelling"
+                            class="text-xs px-3 py-1.5 rounded-xl font-medium bg-rose-500/10 text-rose-400 border border-rose-500/30 hover:bg-rose-500/20 transition-all flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                        <span x-text="isCancelling ? 'Arrêt...' : 'Interrompre'"></span>
+                    </button>
+
+                    <span class="text-xs px-3 py-1 rounded-full font-mono font-bold"
+                          :class="{
+                              'bg-amber-500/10 text-amber-400 border border-amber-500/30': activeTask.status === 'RUNNING',
+                              'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30': activeTask.status === 'SUCCESS',
+                              'bg-rose-500/10 text-rose-400 border border-rose-500/30': activeTask.status === 'FAILED' || activeTask.status === 'CANCELLED'
+                          }"
+                          x-text="activeTask.status + ' (' + activeTask.progress + '%)'"></span>
+                </div>
             </div>
 
             <!-- Progress Bar -->
-            <div class="w-full bg-slate-900 rounded-full h-3 overflow-hidden border border-slate-800">
-                <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-3 transition-all duration-300 rounded-full"
+            <div class="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-800">
+                <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-2.5 transition-all duration-300 rounded-full"
                      :style="'width: ' + activeTask.progress + '%'"></div>
             </div>
 
-            <!-- Task Log Terminal Output -->
-            <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 font-mono text-xs text-slate-300 max-h-48 overflow-y-auto space-y-1">
+            <!-- Task Log Terminal Output Header -->
+            <div class="flex items-center justify-between text-xs text-slate-400 border-b border-slate-800/80 pb-2">
+                <div class="flex items-center gap-2 font-mono">
+                    <span class="font-bold text-slate-200">Journal d'exécution en direct</span>
+                    <span class="text-[10px] text-slate-500 font-mono" x-text="'(' + (activeTask.logs ? activeTask.logs.length : 0) + ' lignes)'"></span>
+                </div>
+                <button @click="autoScroll = !autoScroll"
+                        :class="autoScroll ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' : 'text-slate-400 bg-slate-900 border-slate-800'"
+                        class="px-2 py-0.5 rounded-lg text-[11px] border font-mono transition-all">
+                    <span x-text="autoScroll ? 'Auto-scroll: ON' : 'Auto-scroll: OFF'"></span>
+                </button>
+            </div>
+
+            <!-- Task Log Terminal Output Box -->
+            <div x-ref="taskLogsContainer"
+                 class="bg-[#020617] p-3 sm:p-4 rounded-xl border border-slate-800 font-mono text-xs text-slate-300 max-h-56 sm:max-h-64 overflow-y-auto space-y-0.5 shadow-inner">
                 <template x-for="(line, idx) in activeTask.logs" :key="idx">
-                    <p x-text="line"></p>
+                    <div class="leading-relaxed hover:bg-slate-900/50 px-1 rounded flex items-start gap-2">
+                        <span class="text-slate-600 select-none text-[10px] w-6 text-right shrink-0" x-text="idx + 1"></span>
+                        <span class="flex-1 break-all whitespace-pre-wrap font-mono"
+                              :class="{
+                                  'text-emerald-400 font-semibold': line.includes('✓') || line.includes('succès') || line.includes('SUCCESS'),
+                                  'text-rose-400 font-semibold': line.includes('❌') || line.includes('ERREUR') || line.includes('Échec') || line.includes('FAILED'),
+                                  'text-cyan-400 font-medium': line.includes('➔') || line.includes('Initialisation'),
+                                  'text-slate-300': !line.includes('✓') && !line.includes('❌') && !line.includes('➔')
+                              }"
+                              x-text="line"></span>
+                    </div>
                 </template>
+                <div x-show="activeTask.status === 'RUNNING'" class="flex items-center gap-1.5 text-emerald-400 text-xs pt-1 animate-pulse">
+                    <span class="inline-block w-2 h-3.5 bg-emerald-400"></span>
+                    <span class="text-[11px] text-slate-500 font-mono">En cours d'exécution...</span>
+                </div>
             </div>
         </div>
     </template>
 
-    <!-- Available Software Installers Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Available Software Installers Grid (Responsive: 1 col on mobile, 2 on tablet, 3 on desktop) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
 
-        <!-- MELODI ERP Installer -->
-        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
+        <!-- MELODI ERP Installer (Primary Featured Card) -->
+        <div class="bg-slate-950 p-5 sm:p-6 rounded-2xl border-2 border-emerald-500/40 flex flex-col justify-between space-y-5 shadow-xl md:col-span-2 lg:col-span-2">
             <div class="space-y-3">
-                <div class="flex items-center justify-between">
+                <div class="flex items-center justify-between flex-wrap gap-2">
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-bold text-slate-950 shadow-lg">
+                        <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-bold text-slate-950 shadow-lg text-lg">
                             M
                         </div>
                         <div>
-                            <h4 class="font-bold text-slate-100 text-lg">MELODI ERP</h4>
+                            <div class="flex items-center gap-2">
+                                <h4 class="font-bold text-slate-100 text-lg">MELODI ERP</h4>
+                                <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Recommandé</span>
+                            </div>
                             <span class="text-xs text-slate-400">Application ERP Principale</span>
                         </div>
                     </div>
-                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Natif / Docker (ZIP)</span>
+                    <span class="text-xs px-2.5 py-1 rounded-full font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Port 5000</span>
                 </div>
 
-                <p class="text-xs text-slate-400 leading-relaxed">
-                    Déploie l'application MELODI ERP à partir d'une archive source ZIP fournie par l'utilisateur (déploiement direct avec systemd ou en conteneur Docker isolé).
+                <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                    Déploie automatiquement l'application serveur MELODI ERP avec son environnement virtuel Python dédié, ses dépendances et son service systemd de démarrage automatique.
                 </p>
-            </div>
 
-            <div class="space-y-2 pt-2 border-t border-slate-800/80">
-                <a href="/installation/melodi" class="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    <span>Assistant d'installation & Upload ZIP</span>
-                </a>
-            </div>
-        </div>
-
-        <!-- Docker Engine Installer -->
-        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
-            <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-base">
-                            🐳
-                        </div>
-                        <div>
-                            <h4 class="font-bold text-slate-100 text-lg">Docker Engine</h4>
-                            <span class="text-xs text-slate-400">Moteur de Conteneurs</span>
-                        </div>
+                <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs text-slate-400 space-y-1">
+                    <div class="flex items-center gap-2 text-slate-300 font-medium">
+                        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <span>Installation facile en 1 clic</span>
                     </div>
-                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">Hôte Linux</span>
+                    <p class="text-[11px] text-slate-400 pl-6">Support de téléversement d'archive ZIP source ou installation locale standard.</p>
                 </div>
-
-                <p class="text-xs text-slate-400 leading-relaxed">
-                    Installe et active le démon Docker Engine et Docker Compose sur le système cible pour pouvoir exécuter tous les autres services sous forme de conteneurs.
-                </p>
             </div>
 
-            <div class="space-y-2 pt-2 border-t border-slate-800/80">
-                <a href="/installation/docker" class="w-full py-2.5 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
-                    <span>Installer Docker Engine</span>
-                </a>
-            </div>
-        </div>
-
-        <!-- MinIO Object Storage (S3) -->
-        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
-            <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-base">
-                            🪣
-                        </div>
-                        <div>
-                            <h4 class="font-bold text-slate-100 text-lg">MinIO S3 Storage</h4>
-                            <span class="text-xs text-slate-400">Stockage d'objets & Pièces jointes</span>
-                        </div>
-                    </div>
-                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-amber-500/10 text-amber-400 border border-amber-500/30">Port 9000 / 9001</span>
-                </div>
-
-                <p class="text-xs text-slate-400 leading-relaxed">
-                    Serveur S3 performant pour le stockage des pièces jointes, devis, factures et exports de MELODI ERP avec console web d'administration incluse.
-                </p>
-            </div>
-
-            <div class="space-y-2 pt-2 border-t border-slate-800/80">
-                <a href="/installation/minio" class="w-full py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
-                    <span>Installer MinIO (Natif ou Docker)</span>
-                </a>
-            </div>
-        </div>
-
-        <!-- pgAdmin 4 Database Manager -->
-        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
-            <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-base">
-                            🐘
-                        </div>
-                        <div>
-                            <h4 class="font-bold text-slate-100 text-lg">pgAdmin 4 (Web)</h4>
-                            <span class="text-xs text-slate-400">Gestionnaire Base de données</span>
-                        </div>
-                    </div>
-                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-blue-500/10 text-blue-400 border border-blue-500/30">Port 5050</span>
-                </div>
-
-                <p class="text-xs text-slate-400 leading-relaxed">
-                    Interface web complète pour explorer vos tables PostgreSQL, exécuter des requêtes SQL interactives et administrer la base de données de l'ERP.
-                </p>
-            </div>
-
-            <div class="space-y-2 pt-2 border-t border-slate-800/80">
-                <a href="/installation/pgadmin" class="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
-                    <span>Installer pgAdmin 4</span>
-                </a>
-            </div>
-        </div>
-
-        <!-- Postfix Mail Server -->
-        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
-            <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-base">
-                            ✉️
-                        </div>
-                        <div>
-                            <h4 class="font-bold text-slate-100 text-lg">Postfix Mail Server</h4>
-                            <span class="text-xs text-slate-400">Serveur de Messagerie Transactionnelle</span>
-                        </div>
-                    </div>
-                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Port 25</span>
-                </div>
-
-                <p class="text-xs text-slate-400 leading-relaxed">
-                    Agent de transfert d'emails (MTA) ultra-léger et rapide pour l'expédition des factures, notifications et alertes email de MELODI ERP.
-                </p>
-            </div>
-
-            <div class="space-y-2 pt-2 border-t border-slate-800/80">
-                <a href="/installation/postfix" class="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
-                    <span>Installer Postfix (Natif ou Docker)</span>
+            <div class="pt-2 border-t border-slate-800">
+                <a href="/installation/melodi" class="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    <span>Assistant d'installation MELODI</span>
                 </a>
             </div>
         </div>
 
         <!-- PostgreSQL Database Installer -->
-        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
+        <div class="bg-slate-950 p-5 sm:p-6 rounded-2xl border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col justify-between space-y-5">
             <div class="space-y-3">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+                        <div class="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm">
                             PG
                         </div>
                         <div>
-                            <h4 class="font-bold text-slate-100 text-lg">PostgreSQL</h4>
-                            <span class="text-xs text-slate-400">Base de données Relationnelle</span>
+                            <h4 class="font-bold text-slate-100 text-base">PostgreSQL</h4>
+                            <span class="text-xs text-slate-400">Base de données</span>
                         </div>
                     </div>
-                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">Port 5432</span>
+                    <span class="text-[11px] px-2 py-0.5 rounded-full font-mono bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">Port 5432</span>
                 </div>
 
                 <p class="text-xs text-slate-400 leading-relaxed">
-                    Installe les paquets système <code class="text-indigo-400">postgresql</code> ou lance le conteneur Docker officiel avec persistance des données.
+                    Installe et active la base relationnelle PostgreSQL nécessaire au stockage persistant des entités de MELODI ERP.
                 </p>
             </div>
 
-            <div class="space-y-2 pt-2 border-t border-slate-800/80">
-                <a href="/installation/postgresql" class="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
+            <div class="pt-2 border-t border-slate-800">
+                <a href="/installation/postgresql" class="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
                     <span>Installer PostgreSQL</span>
                 </a>
             </div>
         </div>
 
         <!-- Redis Server Installer -->
-        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
+        <div class="bg-slate-950 p-5 sm:p-6 rounded-2xl border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col justify-between space-y-5">
             <div class="space-y-3">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center font-bold">
+                        <div class="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center font-bold text-sm">
                             RD
                         </div>
                         <div>
-                            <h4 class="font-bold text-slate-100 text-lg">Redis Server</h4>
-                            <span class="text-xs text-slate-400">Cache & Message Broker</span>
+                            <h4 class="font-bold text-slate-100 text-base">Redis Server</h4>
+                            <span class="text-xs text-slate-400">Cache & Queue</span>
                         </div>
                     </div>
-                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-rose-500/10 text-rose-400 border border-rose-500/30">Port 6379</span>
+                    <span class="text-[11px] px-2 py-0.5 rounded-full font-mono bg-rose-500/10 text-rose-400 border border-rose-500/30">Port 6379</span>
                 </div>
 
                 <p class="text-xs text-slate-400 leading-relaxed">
-                    Serveur de cache mémoire ultra-rapide et broker de files d'attente (disponible en paquet natif apt ou conteneur Docker).
+                    Serveur de cache mémoire ultra-rapide et broker de messages asynchrones pour accélérer les opérations de l'ERP.
                 </p>
             </div>
 
-            <div class="space-y-2 pt-2 border-t border-slate-800/80">
-                <a href="/installation/redis" class="w-full py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
+            <div class="pt-2 border-t border-slate-800">
+                <a href="/installation/redis" class="w-full py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
                     <span>Installer Redis</span>
                 </a>
             </div>
         </div>
 
-        <!-- Nginx Web Server Installer -->
-        <div class="bg-slate-950 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between space-y-5">
+        <!-- pgAdmin 4 Database Manager -->
+        <div class="bg-slate-950 p-5 sm:p-6 rounded-2xl border border-slate-800 hover:border-slate-700/80 transition-all flex flex-col justify-between space-y-5">
             <div class="space-y-3">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center font-bold">
-                            NG
+                        <div class="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-sm">
+                            🐘
                         </div>
                         <div>
-                            <h4 class="font-bold text-slate-100 text-lg">Nginx Web Server</h4>
-                            <span class="text-xs text-slate-400">Proxy Inverse HTTP</span>
+                            <h4 class="font-bold text-slate-100 text-base">pgAdmin 4 (Web)</h4>
+                            <span class="text-xs text-slate-400">Console d'administration</span>
                         </div>
                     </div>
-                    <span class="text-[11px] px-2.5 py-1 rounded-full font-mono bg-teal-500/10 text-teal-400 border border-teal-500/30">Port 80</span>
+                    <span class="text-[11px] px-2 py-0.5 rounded-full font-mono bg-blue-500/10 text-blue-400 border border-blue-500/30">Port 5050</span>
                 </div>
 
                 <p class="text-xs text-slate-400 leading-relaxed">
-                    Installe le paquet apt <code class="text-teal-400">nginx</code>, valide la configuration initiale et active le reverse proxy vers l'ERP et les consoles web.
+                    Interface web complète pour explorer visuellement les tables de données et vérifier les schémas PostgreSQL.
                 </p>
             </div>
 
-            <div class="space-y-2 pt-2 border-t border-slate-800/80">
-                <a href="/installation/nginx" class="w-full py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2">
-                    <span>Installer Nginx</span>
+            <div class="pt-2 border-t border-slate-800">
+                <a href="/installation/pgadmin" class="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
+                    <span>Installer pgAdmin 4</span>
                 </a>
             </div>
         </div>
@@ -283,24 +229,34 @@
             activeTask: null,
             activeTaskId: null,
             timer: null,
+            isCancelling: false,
+            autoScroll: true,
 
-            triggerInstall(installerName) {
-                const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
-                if (!confirm(`Confirmer le lancement de l'installation de ${installerName} sur le serveur courant ?`)) return;
+            init() {
+                this.checkActiveTasks();
+            },
 
-                fetch(`/api/servers/${activeServerId}/installers/${installerName}/install`, { method: 'POST' })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.success) {
-                            this.activeTaskId = data.task_id;
-                            this.pollTask();
-                            if (this.timer) clearInterval(this.timer);
-                            this.timer = setInterval(() => this.pollTask(), 1000);
-                        } else {
-                            alert(data.message);
-                        }
-                    })
-                    .catch(e => alert("Erreur au lancement de l'installation."));
+            async checkActiveTasks() {
+                // Poll any ongoing task
+            },
+
+            async cancelTask(taskId) {
+                if (!taskId) return;
+                if (!confirm("Êtes-vous sûr de vouloir interrompre cette opération en cours ?")) return;
+                try {
+                    this.isCancelling = true;
+                    const res = await fetch(`/api/tasks/${taskId}/cancel`, { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) {
+                        await this.pollTask();
+                    } else {
+                        alert(data.message || "Impossible d'interrompre la tâche.");
+                    }
+                } catch (e) {
+                    alert("Erreur lors de l'interruption de la tâche.");
+                } finally {
+                    this.isCancelling = false;
+                }
             },
 
             async pollTask() {
@@ -310,7 +266,13 @@
                     const data = await res.json();
                     if (data.success) {
                         this.activeTask = data.task;
-                        if (this.activeTask.status === 'SUCCESS' || this.activeTask.status === 'FAILED') {
+                        if (this.autoScroll) {
+                            this.$nextTick(() => {
+                                const container = this.$refs.taskLogsContainer;
+                                if (container) container.scrollTop = container.scrollHeight;
+                            });
+                        }
+                        if (this.activeTask.status === 'SUCCESS' || this.activeTask.status === 'FAILED' || this.activeTask.status === 'CANCELLED') {
                             if (this.timer) clearInterval(this.timer);
                         }
                     }

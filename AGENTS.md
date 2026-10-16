@@ -25,10 +25,10 @@ melodi_control_center/
 │   ├── core/                   # ServerManager, TaskManager, ProcessManager
 │   ├── remote/                 # Executor, LocalExecutor, SSHExecutor, CredentialManager
 │   ├── system/                 # PackageManager, SystemdManager, SystemInfo
-│   ├── installers/             # BaseInstaller, MelodiInstaller, PG, Redis, Nginx
-│   └── services/               # BaseService, Melodi, PG, Redis, Nginx, Celery
+│   ├── installers/             # BaseInstaller, MelodiInstaller, PG, Redis, PgAdmin
+│   └── services/               # BaseService, Melodi, PG, Redis, PgAdmin
 │
-├── templates/                  # Layout Jinja2, Dashboard, Serveurs, Services, Install, Monitoring
+├── templates/                  # Layout Jinja2, Dashboard, Serveurs, Services, Install, Logs, Settings
 ├── static/                     # CSS et images
 ├── tests/                      # Suite de tests automatisés pytest
 ├── config/                     # config.json et servers.json

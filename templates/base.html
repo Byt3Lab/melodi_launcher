@@ -2,7 +2,7 @@
 <html lang="fr" class="dark h-full">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>{% block title %}MELODI Control Center{% endblock %}</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -29,10 +29,127 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
 </head>
-<body class="bg-slate-900 text-slate-100 h-full flex overflow-hidden" x-data="globalApp()">
+<body class="bg-slate-950 text-slate-100 h-full flex overflow-hidden font-sans antialiased" x-data="globalApp()">
 
-    <!-- Sidebar Navigation -->
-    <aside class="w-64 bg-slate-950 border-r border-slate-800 flex flex-col justify-between select-none">
+    <!-- Mobile Drawer Backdrop -->
+    <div x-show="mobileMenuOpen"
+         x-transition:enter="transition-opacity ease-linear duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition-opacity ease-linear duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @click="mobileMenuOpen = false"
+         class="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm lg:hidden"
+         style="display: none;" x-cloak></div>
+
+    <!-- Mobile Sidebar Drawer -->
+    <aside x-show="mobileMenuOpen"
+           x-transition:enter="transition ease-in-out duration-300 transform"
+           x-transition:enter-start="-translate-x-full"
+           x-transition:enter-end="translate-x-0"
+           x-transition:leave="transition ease-in-out duration-300 transform"
+           x-transition:leave-start="translate-x-0"
+           x-transition:leave-end="-translate-x-full"
+           class="fixed inset-y-0 left-0 z-50 w-72 bg-slate-950 border-r border-slate-800 flex flex-col justify-between select-none lg:hidden shadow-2xl"
+           style="display: none;" x-cloak>
+        <div>
+            <!-- Mobile Header with Close Button -->
+            <div class="h-16 flex items-center justify-between px-5 border-b border-slate-800/80">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-bold text-slate-950 shadow-lg shadow-emerald-500/20">
+                        M
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-base tracking-wide text-white">MELODI</h1>
+                        <p class="text-[11px] text-slate-400 font-medium">Control Center</p>
+                    </div>
+                </div>
+                <button @click="mobileMenuOpen = false" class="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-900 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Mobile Server Selector -->
+            <div class="p-4 border-b border-slate-800/60">
+                <label class="block text-[11px] text-slate-400 font-medium mb-1.5 uppercase tracking-wider">Serveur Actif</label>
+                <select x-model="activeServerId" @change="switchServer()" 
+                        class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                    <template x-for="srv in servers" :key="srv.id">
+                        <option :value="srv.id" x-text="srv.name + ' (' + srv.host + ')'" :selected="srv.id === activeServerId"></option>
+                    </template>
+                </select>
+            </div>
+
+            <!-- Mobile Navigation Links -->
+            <nav class="p-4 space-y-1.5">
+                <a href="/" 
+                   class="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold transition-all {% if active_page == 'dashboard' %} bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-sm {% else %} text-slate-400 hover:text-slate-100 hover:bg-slate-900 {% endif %}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                    </svg>
+                    <span>Tableau de bord</span>
+                </a>
+
+                <a href="/servers" 
+                   class="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold transition-all {% if active_page == 'servers' %} bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-sm {% else %} text-slate-400 hover:text-slate-100 hover:bg-slate-900 {% endif %}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 012 2h14a2 2 0 012-2v-4a2 2 0 01-2-2"/>
+                    </svg>
+                    <span>Serveurs</span>
+                </a>
+
+                <a href="/services" 
+                   class="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold transition-all {% if active_page == 'services' %} bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-sm {% else %} text-slate-400 hover:text-slate-100 hover:bg-slate-900 {% endif %}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                    </svg>
+                    <span>Services</span>
+                </a>
+
+                <a href="/installation" 
+                   class="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold transition-all {% if active_page == 'installation' %} bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-sm {% else %} text-slate-400 hover:text-slate-100 hover:bg-slate-900 {% endif %}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    <span>Installateur MELODI</span>
+                </a>
+
+                <a href="/logs" 
+                   class="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold transition-all {% if active_page == 'logs' %} bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-sm {% else %} text-slate-400 hover:text-slate-100 hover:bg-slate-900 {% endif %}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <span>Journaux (Logs)</span>
+                </a>
+
+                <a href="/settings" 
+                   class="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold transition-all {% if active_page == 'settings' %} bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-sm {% else %} text-slate-400 hover:text-slate-100 hover:bg-slate-900 {% endif %}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <span>Paramètres</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Mobile Footer Server Status -->
+        <div class="p-4 border-t border-slate-800/80">
+            <div class="flex items-center justify-between px-3 py-2.5 bg-slate-900 rounded-xl text-xs text-slate-400 border border-slate-800/60">
+                <span class="truncate max-w-[140px] font-medium text-slate-200" x-text="currentServerName"></span>
+                <span class="flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-green"></span>
+                    <span class="font-medium text-emerald-400">Actif</span>
+                </span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Desktop Sidebar Navigation -->
+    <aside class="hidden lg:flex lg:w-64 bg-slate-950 border-r border-slate-800/80 flex-col justify-between select-none shrink-0 shadow-lg">
         <div>
             <!-- Header Logo -->
             <div class="h-16 flex items-center px-6 border-b border-slate-800/80 gap-3">
@@ -49,7 +166,7 @@
             <div class="p-4 border-b border-slate-800/60">
                 <label class="block text-[11px] text-slate-400 font-medium mb-1.5 uppercase tracking-wider">Serveur Actif</label>
                 <select x-model="activeServerId" @change="switchServer()" 
-                        class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                        class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 hover:border-slate-700 transition-colors">
                     <template x-for="srv in servers" :key="srv.id">
                         <option :value="srv.id" x-text="srv.name + ' (' + srv.host + ')'" :selected="srv.id === activeServerId"></option>
                     </template>
@@ -59,92 +176,89 @@
             <!-- Navigation Links -->
             <nav class="p-4 space-y-1">
                 <a href="/" 
-                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-colors {% if active_page == 'dashboard' %} bg-slate-800 text-emerald-400 border border-slate-700/60 shadow-sm {% else %} text-slate-400 hover:text-slate-200 hover:bg-slate-900 {% endif %}">
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-medium transition-all {% if active_page == 'dashboard' %} bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-sm {% else %} text-slate-400 hover:text-slate-100 hover:bg-slate-900 {% endif %}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
                     </svg>
-                    Dashboard
+                    <span>Tableau de bord</span>
                 </a>
 
                 <a href="/servers" 
-                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-colors {% if active_page == 'servers' %} bg-slate-800 text-emerald-400 border border-slate-700/60 shadow-sm {% else %} text-slate-400 hover:text-slate-200 hover:bg-slate-900 {% endif %}">
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-medium transition-all {% if active_page == 'servers' %} bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-sm {% else %} text-slate-400 hover:text-slate-100 hover:bg-slate-900 {% endif %}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 012 2h14a2 2 0 012-2v-4a2 2 0 01-2-2"/>
                     </svg>
-                    Serveurs
+                    <span>Serveurs</span>
                 </a>
 
                 <a href="/services" 
-                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-colors {% if active_page == 'services' %} bg-slate-800 text-emerald-400 border border-slate-700/60 shadow-sm {% else %} text-slate-400 hover:text-slate-200 hover:bg-slate-900 {% endif %}">
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-medium transition-all {% if active_page == 'services' %} bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-sm {% else %} text-slate-400 hover:text-slate-100 hover:bg-slate-900 {% endif %}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
                     </svg>
-                    Services
+                    <span>Services</span>
                 </a>
 
                 <a href="/installation" 
-                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-colors {% if active_page == 'installation' %} bg-slate-800 text-emerald-400 border border-slate-700/60 shadow-sm {% else %} text-slate-400 hover:text-slate-200 hover:bg-slate-900 {% endif %}">
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-medium transition-all {% if active_page == 'installation' %} bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-sm {% else %} text-slate-400 hover:text-slate-100 hover:bg-slate-900 {% endif %}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                     </svg>
-                    Installations
-                </a>
-
-                <a href="/monitoring" 
-                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-colors {% if active_page == 'monitoring' %} bg-slate-800 text-emerald-400 border border-slate-700/60 shadow-sm {% else %} text-slate-400 hover:text-slate-200 hover:bg-slate-900 {% endif %}">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                    </svg>
-                    Monitoring
+                    <span>Installateur MELODI</span>
                 </a>
 
                 <a href="/logs" 
-                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-colors {% if active_page == 'logs' %} bg-slate-800 text-emerald-400 border border-slate-700/60 shadow-sm {% else %} text-slate-400 hover:text-slate-200 hover:bg-slate-900 {% endif %}">
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-medium transition-all {% if active_page == 'logs' %} bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-sm {% else %} text-slate-400 hover:text-slate-100 hover:bg-slate-900 {% endif %}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
-                    Logs
-                </a>
-
-                <a href="/terminal" 
-                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-colors {% if active_page == 'terminal' %} bg-slate-800 text-emerald-400 border border-slate-700/60 shadow-sm {% else %} text-slate-400 hover:text-slate-200 hover:bg-slate-900 {% endif %}">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                    </svg>
-                    Terminal Web
+                    <span>Journaux (Logs)</span>
                 </a>
 
                 <a href="/settings" 
-                   class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-colors {% if active_page == 'settings' %} bg-slate-800 text-emerald-400 border border-slate-700/60 shadow-sm {% else %} text-slate-400 hover:text-slate-200 hover:bg-slate-900 {% endif %}">
+                   class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-medium transition-all {% if active_page == 'settings' %} bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-sm {% else %} text-slate-400 hover:text-slate-100 hover:bg-slate-900 {% endif %}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                     </svg>
-                    Paramètres
+                    <span>Paramètres</span>
                 </a>
             </nav>
-
         </div>
 
-        <!-- Footer Server Status -->
+        <!-- Desktop Footer Server Status -->
         <div class="p-4 border-t border-slate-800/80">
-            <div class="flex items-center justify-between px-3 py-2 bg-slate-900 rounded-lg text-xs text-slate-400">
-                <span class="truncate max-w-[110px]" x-text="currentServerName"></span>
+            <div class="flex items-center justify-between px-3 py-2 bg-slate-900/90 rounded-xl text-xs text-slate-400 border border-slate-800/60">
+                <span class="truncate max-w-[110px] font-medium text-slate-200" x-text="currentServerName"></span>
                 <span class="flex items-center gap-1.5">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 pulse-green"></span>
-                    <span class="font-medium text-slate-300">En ligne</span>
+                    <span class="font-medium text-emerald-400">Actif</span>
                 </span>
             </div>
         </div>
     </aside>
 
     <!-- Main Content Area -->
-    <div class="flex-1 flex flex-col h-full overflow-hidden bg-slate-900">
+    <div class="flex-1 flex flex-col h-full overflow-hidden bg-slate-900/50">
         <!-- Top Bar -->
-        <header class="h-16 border-b border-slate-800 px-8 flex items-center justify-between bg-slate-900/60 backdrop-blur-md">
-            <h2 class="text-lg font-semibold text-slate-100">{% block header_title %}MELODI Control Center{% endblock %}</h2>
-            <div class="flex items-center gap-4 text-sm text-slate-400">
-                <span class="bg-slate-800 border border-slate-700/60 px-3 py-1 rounded-full text-xs font-mono">127.0.0.1:8080</span>
+        <header class="h-16 border-b border-slate-800/80 px-4 sm:px-6 lg:px-8 flex items-center justify-between bg-slate-950/80 backdrop-blur-md shrink-0">
+            <div class="flex items-center gap-3">
+                <!-- Hamburger Button for Mobile -->
+                <button @click="mobileMenuOpen = true" class="p-2 -ml-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900 lg:hidden transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
+
+                <h2 class="text-base sm:text-lg font-bold text-slate-100 tracking-tight">{% block header_title %}MELODI Control Center{% endblock %}</h2>
+            </div>
+
+            <div class="flex items-center gap-2 sm:gap-3">
+                <div class="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs">
+                    <span class="text-slate-400">Serveur:</span>
+                    <span class="font-semibold text-emerald-400" x-text="currentServerName"></span>
+                </div>
+                <span class="bg-slate-900 border border-slate-800 text-slate-300 px-2.5 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-mono">127.0.0.1:8080</span>
             </div>
         </header>
 
@@ -163,7 +277,7 @@
         </div>
 
         <!-- Main Body -->
-        <main class="flex-1 overflow-y-auto p-8">
+        <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
             {% block content %}{% endblock %}
         </main>
     </div>
@@ -172,6 +286,7 @@
     <script>
         function globalApp() {
             return {
+                mobileMenuOpen: false,
                 servers: [],
                 activeServerId: localStorage.getItem('melodi_active_server_id') || 'local',
                 currentServerName: 'Localhost',
