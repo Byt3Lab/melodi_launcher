@@ -9,7 +9,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
             <h3 class="text-xl sm:text-2xl font-bold text-white tracking-tight">Services Administrés</h3>
-            <p class="text-xs sm:text-sm text-slate-400">Contrôlez l'état et l'exécution des composants MELODI ERP, PostgreSQL, Redis et pgAdmin.</p>
+            <p class="text-xs sm:text-sm text-slate-400">Contrôlez l'état et l'exécution de MELODI ERP, WebSocket, Process Manager, PostgreSQL, Redis et pgAdmin.</p>
         </div>
         <div class="flex items-center gap-2 self-start sm:self-auto">
             <span class="text-xs text-slate-400">Actualisation en temps réel</span>
@@ -25,7 +25,7 @@
                     <div class="flex items-center justify-between gap-2">
                         <div class="flex items-center gap-3">
                             <div class="w-11 h-11 rounded-xl bg-slate-900 border border-slate-800 text-emerald-400 flex items-center justify-center font-bold text-sm shadow-inner shrink-0">
-                                <span x-text="service.name.substring(0, 2).toUpperCase()"></span>
+                                <span x-text="service.name === 'melodi_websocket' ? 'WS' : (service.name === 'melodi_process_manager' ? 'PM' : service.name.substring(0, 2).toUpperCase())"></span>
                             </div>
                             <div>
                                 <h4 class="font-bold text-slate-100 text-base sm:text-lg" x-text="service.display_name"></h4>

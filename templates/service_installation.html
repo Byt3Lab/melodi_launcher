@@ -165,12 +165,12 @@
                     </div>
                 </div>
 
-                <!-- Mode Options Form (ZIP upload pour MELODI) -->
+                <!-- Mode Options Form (ZIP upload pour les composants MELODI) -->
                 <div class="space-y-4 pt-3 border-t border-slate-800">
-                    <!-- MELODI ERP Specific: ZIP File Selection -->
-                    <template x-if="currentServiceId === 'melodi'">
+                    <!-- MELODI Components: ZIP File Selection -->
+                    <template x-if="['melodi', 'melodi_websocket', 'melodi_process_manager'].includes(currentServiceId)">
                         <div class="space-y-2">
-                            <label class="text-xs font-semibold text-slate-300">Archive Source MELODI (.zip) :</label>
+                            <label class="text-xs font-semibold text-slate-300">Archive Source (.zip) (Optionnel si déjà extrait) :</label>
                             <div class="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-2">
                                 <input type="file" accept=".zip" @change="handleFileSelect($event)" class="text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 w-full" />
                                 <template x-if="uploadedZipPath">
@@ -350,6 +350,52 @@
                 { title: "4. Activation Systemd", description: "Enregistrement de melodi.service pour démarrage automatique.", cmd: "systemctl enable --now melodi" }
             ]
         },
+        melodi_websocket: {
+            id: 'melodi_websocket',
+            title: 'MELODI WebSocket',
+            subtitle: 'Serveur WebSocket Temps Réel & Notifications',
+            category: 'Temps Réel MELODI',
+            badge: 'WS',
+            colorClass: 'bg-cyan-500/20 border border-cyan-500/30 text-cyan-400',
+            btnColorClass: 'bg-cyan-600 hover:bg-cyan-500',
+            unitFile: 'melodi-websocket.service',
+            port: 8001,
+            description: "Déploie et configure le serveur WebSocket temps réel de MELODI ERP pour la diffusion instantanée des événements et notifications aux utilisateurs connectés.",
+            paths: {
+                app: '/opt/melodi',
+                config: '/opt/melodi/websocket_server.py',
+                logs: '/var/log/melodi-websocket.log'
+            },
+            steps: [
+                { title: "1. Vérification de l'environnement", description: "Vérifie Python 3, venv et le dossier /opt/melodi.", cmd: "python3 -m venv /opt/melodi/venv" },
+                { title: "2. Extraction ZIP (si fourni)", description: "Mise à jour des fichiers WebSocket dans /opt/melodi.", cmd: "unzip -o archive.zip -d /opt/melodi" },
+                { title: "3. Dépendances Python", description: "Installation des paquets requis dans le virtualenv.", cmd: "/opt/melodi/venv/bin/pip install -r requirements.txt" },
+                { title: "4. Service Systemd", description: "Création et activation de melodi-websocket.service.", cmd: "systemctl enable --now melodi-websocket" }
+            ]
+        },
+        melodi_process_manager: {
+            id: 'melodi_process_manager',
+            title: 'MELODI Process Manager',
+            subtitle: 'Gestionnaire de Processus & Tâches Asynchrones',
+            category: 'Orchestration MELODI',
+            badge: 'PM',
+            colorClass: 'bg-amber-500/20 border border-amber-500/30 text-amber-400',
+            btnColorClass: 'bg-amber-600 hover:bg-amber-500',
+            unitFile: 'melodi-process-manager.service',
+            port: 5002,
+            description: "Déploie et configure le gestionnaire de processus de MELODI ERP chargé de superviser les workers, files d'attente et traitements planifiés en arrière-plan.",
+            paths: {
+                app: '/opt/melodi',
+                config: '/opt/melodi/process_manager.py',
+                logs: '/var/log/melodi-process-manager.log'
+            },
+            steps: [
+                { title: "1. Vérification de l'environnement", description: "Vérifie Python 3, venv et le dossier /opt/melodi.", cmd: "python3 -m venv /opt/melodi/venv" },
+                { title: "2. Extraction ZIP (si fourni)", description: "Mise à jour des fichiers Process Manager dans /opt/melodi.", cmd: "unzip -o archive.zip -d /opt/melodi" },
+                { title: "3. Dépendances Python", description: "Installation des paquets requis dans le virtualenv.", cmd: "/opt/melodi/venv/bin/pip install -r requirements.txt" },
+                { title: "4. Service Systemd", description: "Création et activation de melodi-process-manager.service.", cmd: "systemctl enable --now melodi-process-manager" }
+            ]
+        },
         pgadmin: {
             id: 'pgadmin',
             title: 'pgAdmin 4 (Web)',
@@ -422,6 +468,8 @@
             serviceMeta: SERVICES_DATA[initialService] || SERVICES_DATA.melodi,
             allServices: [
                 { id: 'melodi', label: 'MELODI ERP' },
+                { id: 'melodi_websocket', label: 'WebSocket' },
+                { id: 'melodi_process_manager', label: 'Process Manager' },
                 { id: 'postgresql', label: 'PostgreSQL' },
                 { id: 'redis', label: 'Redis' },
                 { id: 'pgadmin', label: 'pgAdmin 4' }

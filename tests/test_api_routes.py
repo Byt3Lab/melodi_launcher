@@ -53,7 +53,7 @@ async def test_api_services_list_local(app_instance):
     assert res.status_code == 200
     data = await res.get_json()
     assert data["success"] is True
-    assert len(data["services"]) >= 4
+    assert len(data["services"]) >= 6
 
 @pytest.mark.asyncio
 async def test_installation_web_pages(app_instance):
@@ -64,7 +64,7 @@ async def test_installation_web_pages(app_instance):
     assert res.status_code == 200
 
     # Pages d'installation dédiées pour chaque service
-    for service_name in ["melodi", "postgresql", "redis", "pgadmin"]:
+    for service_name in ["melodi", "melodi_websocket", "melodi_process_manager", "postgresql", "redis", "pgadmin"]:
         svc_res = await client.get(f"/installation/{service_name}")
         assert svc_res.status_code == 200
 
@@ -72,7 +72,7 @@ async def test_installation_web_pages(app_instance):
 async def test_installer_api_info_endpoint(app_instance):
     client = app_instance.test_client()
 
-    for installer_name in ["melodi", "postgresql", "redis", "pgadmin"]:
+    for installer_name in ["melodi", "melodi_websocket", "melodi_process_manager", "postgresql", "redis", "pgadmin"]:
         res = await client.get(f"/api/servers/local/installers/{installer_name}")
         assert res.status_code == 200
         data = await res.get_json()

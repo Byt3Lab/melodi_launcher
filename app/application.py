@@ -14,12 +14,16 @@ from app.remote.credential_manager import CredentialManager
 
 # Services
 from app.services.melodi import MelodiService
+from app.services.melodi_websocket import MelodiWebsocketService
+from app.services.melodi_process_manager import MelodiProcessManagerService
 from app.services.postgresql import PostgreSQLService
 from app.services.redis import RedisService
 from app.services.pgadmin import PgAdminService
 
 # Installers
 from app.installers.melodi import MelodiInstaller
+from app.installers.melodi_websocket import MelodiWebsocketInstaller
+from app.installers.melodi_process_manager import MelodiProcessManagerInstaller
 from app.installers.postgresql import PostgreSQLInstaller
 from app.installers.redis import RedisInstaller
 from app.installers.pgadmin import PgAdminInstaller
@@ -51,6 +55,8 @@ def create_app(config_file_path: str = None) -> Quart:
     credential_manager = CredentialManager()
     log_manager = LogManager(settings_manager)
     process_manager = ProcessManager(log_manager)
+    ws_process_manager = ProcessManager(log_manager)
+    pm_process_manager = ProcessManager(log_manager)
 
     app.config["SETTINGS"] = settings_manager
     app.config["SERVER_MANAGER"] = server_manager
@@ -58,10 +64,14 @@ def create_app(config_file_path: str = None) -> Quart:
     app.config["CREDENTIAL_MANAGER"] = credential_manager
     app.config["LOG_MANAGER"] = log_manager
     app.config["PROCESS_MANAGER"] = process_manager
+    app.config["WS_PROCESS_MANAGER"] = ws_process_manager
+    app.config["PM_PROCESS_MANAGER"] = pm_process_manager
 
     # 2. Services enregistrés
     services_map = {
         "melodi": MelodiService(settings_manager, process_manager),
+        "melodi_websocket": MelodiWebsocketService(settings_manager, ws_process_manager),
+        "melodi_process_manager": MelodiProcessManagerService(settings_manager, pm_process_manager),
         "postgresql": PostgreSQLService(),
         "redis": RedisService(),
         "pgadmin": PgAdminService()
@@ -71,6 +81,8 @@ def create_app(config_file_path: str = None) -> Quart:
     # 3. Installateurs enregistrés
     installers_map = {
         "melodi": MelodiInstaller(),
+        "melodi_websocket": MelodiWebsocketInstaller(),
+        "melodi_process_manager": MelodiProcessManagerInstaller(),
         "postgresql": PostgreSQLInstaller(),
         "redis": RedisInstaller(),
         "pgadmin": PgAdminInstaller()
@@ -86,9 +98,10 @@ def create_app(config_file_path: str = None) -> Quart:
     async def lifespan():
         yield
         # Shutdown gracieux des processus locaux s'ils tournent
-        proc_mgr = app.config.get("PROCESS_MANAGER")
-        if proc_mgr and await proc_mgr.is_running():
-            print("[MELODI Control Center] Extinction du sous-processus MELODI local...")
-            await proc_mgr.stop(timeout=5.0)
+        for key in ("PROCESS_MANAGER", "WS_PROCESS_MANAGER", "PM_PROCESS_MANAGER"):
+            proc_mgr = app.config.get(key)
+            if proc_mgr and await proc_mgr.is_running():
+                print(f"[MELODI Control Center] Extinction du sous-processus ({key})...")
+                await proc_mgr.stop(timeout=5.0)
 
     return app

@@ -22,6 +22,22 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "port": 5000,
         "auto_start": False
     },
+    "melodi_websocket": {
+        "name": "MELODI WebSocket",
+        "path": "",
+        "python": "",
+        "command": ["python3", "websocket_server.py"],
+        "port": 8001,
+        "auto_start": False
+    },
+    "melodi_process_manager": {
+        "name": "MELODI Process Manager",
+        "path": "",
+        "python": "",
+        "command": ["python3", "process_manager.py"],
+        "port": 5002,
+        "auto_start": False
+    },
     "logging": {
         "file_path": "logs/melodi.log",
         "max_history_lines": 500

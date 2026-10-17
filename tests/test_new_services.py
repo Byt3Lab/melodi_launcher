@@ -20,7 +20,7 @@ async def test_services_and_installers_registered(app):
     services = app.config["SERVICES_MAP"]
     installers = app.config["INSTALLERS_MAP"]
 
-    expected = ["melodi", "postgresql", "redis", "pgadmin"]
+    expected = ["melodi", "melodi_websocket", "melodi_process_manager", "postgresql", "redis", "pgadmin"]
     for name in expected:
         assert name in services, f"Service {name} doit être enregistré"
         assert name in installers, f"Installer {name} doit être enregistré"

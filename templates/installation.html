@@ -97,7 +97,7 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
 
         <!-- MELODI ERP Installer (Primary Featured Card) -->
-        <div class="bg-slate-950 p-5 sm:p-6 rounded-2xl border-2 border-emerald-500/40 flex flex-col justify-between space-y-5 shadow-xl md:col-span-2 lg:col-span-2">
+        <div class="bg-slate-950 p-5 sm:p-6 rounded-2xl border-2 border-emerald-500/40 flex flex-col justify-between space-y-5 shadow-xl">
             <div class="space-y-3">
                 <div class="flex items-center justify-between flex-wrap gap-2">
                     <div class="flex items-center gap-3">
@@ -106,32 +106,80 @@
                         </div>
                         <div>
                             <div class="flex items-center gap-2">
-                                <h4 class="font-bold text-slate-100 text-lg">MELODI ERP</h4>
-                                <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Recommandé</span>
+                                <h4 class="font-bold text-slate-100 text-base sm:text-lg">MELODI ERP</h4>
+                                <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Principal</span>
                             </div>
-                            <span class="text-xs text-slate-400">Application ERP Principale</span>
+                            <span class="text-xs text-slate-400">Application ERP Centrale</span>
                         </div>
                     </div>
                     <span class="text-xs px-2.5 py-1 rounded-full font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Port 5000</span>
                 </div>
 
-                <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                    Déploie automatiquement l'application serveur MELODI ERP avec son environnement virtuel Python dédié, ses dépendances et son service systemd de démarrage automatique.
+                <p class="text-xs text-slate-300 leading-relaxed">
+                    Déploie automatiquement l'application serveur MELODI ERP avec son environnement virtuel Python dédié et son service systemd.
                 </p>
-
-                <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-xs text-slate-400 space-y-1">
-                    <div class="flex items-center gap-2 text-slate-300 font-medium">
-                        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                        <span>Installation facile en 1 clic</span>
-                    </div>
-                    <p class="text-[11px] text-slate-400 pl-6">Support de téléversement d'archive ZIP source ou installation locale standard.</p>
-                </div>
             </div>
 
             <div class="pt-2 border-t border-slate-800">
-                <a href="/installation/melodi" class="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
+                <a href="/installation/melodi" class="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    <span>Assistant d'installation MELODI</span>
+                    <span>Installer MELODI ERP</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- MELODI WebSocket Installer -->
+        <div class="bg-slate-950 p-5 sm:p-6 rounded-2xl border border-cyan-500/30 hover:border-cyan-500/50 transition-all flex flex-col justify-between space-y-5 shadow-lg">
+            <div class="space-y-3">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 flex items-center justify-center font-bold text-sm">
+                            WS
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 text-base">MELODI WebSocket</h4>
+                            <span class="text-xs text-slate-400">Temps réel & Notifications</span>
+                        </div>
+                    </div>
+                    <span class="text-[11px] px-2 py-0.5 rounded-full font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">Port 8001</span>
+                </div>
+
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Serveur WebSocket temps réel assurant la diffusion instantanée des notifications, événements et mises à jour de MELODI ERP.
+                </p>
+            </div>
+
+            <div class="pt-2 border-t border-slate-800">
+                <a href="/installation/melodi_websocket" class="w-full py-2.5 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
+                    <span>Installer MELODI WebSocket</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- MELODI Process Manager Installer -->
+        <div class="bg-slate-950 p-5 sm:p-6 rounded-2xl border border-amber-500/30 hover:border-amber-500/50 transition-all flex flex-col justify-between space-y-5 shadow-lg">
+            <div class="space-y-3">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold text-sm">
+                            PM
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-100 text-base">MELODI Process Manager</h4>
+                            <span class="text-xs text-slate-400">Tâches & Workers</span>
+                        </div>
+                    </div>
+                    <span class="text-[11px] px-2 py-0.5 rounded-full font-mono bg-amber-500/10 text-amber-400 border border-amber-500/30">Port 5002</span>
+                </div>
+
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Gestionnaire de processus et d'automatisations d'arrière-plan orchestrant les workers et traitements asynchrones de MELODI.
+                </p>
+            </div>
+
+            <div class="pt-2 border-t border-slate-800">
+                <a href="/installation/melodi_process_manager" class="w-full py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs shadow-lg transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
+                    <span>Installer Process Manager</span>
                 </a>
             </div>
         </div>

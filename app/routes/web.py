@@ -29,7 +29,7 @@ async def installation():
 @web_bp.route("/installation/<service_name>")
 async def installation_service(service_name: str):
     """Page d'installation dédiée pour un service spécifique."""
-    valid_services = ["melodi", "postgresql", "redis", "pgadmin"]
+    valid_services = ["melodi", "melodi_websocket", "melodi_process_manager", "postgresql", "redis", "pgadmin"]
     if service_name not in valid_services:
         return await render_template("installation.html", active_page="installation")
     

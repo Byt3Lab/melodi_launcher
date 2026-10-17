@@ -63,7 +63,7 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="space-y-1.5">
-                        <label class="text-xs text-slate-400 font-medium">Commande d'exécution</label>
+                        <label class="text-xs text-slate-400 font-medium">Commande d'exécution ERP</label>
                         <input type="text" :value="JSON.stringify(form.melodi.command)" 
                                @input="try { form.melodi.command = JSON.parse($event.target.value) } catch(e) {}"
                                class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
@@ -75,6 +75,41 @@
                         <input type="number" x-model.number="form.melodi.port" 
                                class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MELODI WebSocket & Process Manager Section -->
+        <div class="bg-slate-950 p-5 sm:p-6 rounded-2xl border border-slate-800 space-y-4 shadow-lg">
+            <h4 class="font-bold text-slate-200 border-b border-slate-800/80 pb-3 text-sm sm:text-base">MELODI WebSocket & Process Manager</h4>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="space-y-1.5">
+                    <label class="text-xs text-slate-400 font-medium">Commande MELODI WebSocket</label>
+                    <input type="text" :value="JSON.stringify(form.melodi_websocket.command)" 
+                           @input="try { form.melodi_websocket.command = JSON.parse($event.target.value) } catch(e) {}"
+                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                    <p class="text-[11px] text-slate-500">Par défaut: ["python3", "websocket_server.py"]</p>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-xs text-slate-400 font-medium">Port WebSocket</label>
+                    <input type="number" x-model.number="form.melodi_websocket.port" 
+                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-xs text-slate-400 font-medium">Commande MELODI Process Manager</label>
+                    <input type="text" :value="JSON.stringify(form.melodi_process_manager.command)" 
+                           @input="try { form.melodi_process_manager.command = JSON.parse($event.target.value) } catch(e) {}"
+                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                    <p class="text-[11px] text-slate-500">Par défaut: ["python3", "process_manager.py"]</p>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="text-xs text-slate-400 font-medium">Port Process Manager</label>
+                    <input type="number" x-model.number="form.melodi_process_manager.port" 
+                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
                 </div>
             </div>
         </div>
@@ -99,6 +134,8 @@
             form: {
                 server: { host: '127.0.0.1', port: 8080 },
                 melodi: { path: '', python: '', command: ['python3', 'main.py'], port: 5000 },
+                melodi_websocket: { path: '', python: '', command: ['python3', 'websocket_server.py'], port: 8001 },
+                melodi_process_manager: { path: '', python: '', command: ['python3', 'process_manager.py'], port: 5002 },
                 logging: { file_path: 'logs/melodi.log' }
             },
             isSaving: false,
@@ -112,7 +149,12 @@
                     const res = await fetch('/api/settings');
                     const data = await res.json();
                     if (data.success) {
-                        this.form = data.settings;
+                        this.form = {
+                            ...this.form,
+                            ...data.settings,
+                            melodi_websocket: { ...this.form.melodi_websocket, ...(data.settings.melodi_websocket || {}) },
+                            melodi_process_manager: { ...this.form.melodi_process_manager, ...(data.settings.melodi_process_manager || {}) }
+                        };
                     }
                 } catch (e) {
                     console.error("Erreur chargement settings:", e);
