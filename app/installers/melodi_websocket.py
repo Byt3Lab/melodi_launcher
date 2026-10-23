@@ -32,12 +32,15 @@ class MelodiWebsocketInstaller(BaseInstaller):
         super().__init__(name="melodi_websocket", display_name="MELODI WebSocket")
 
     async def install(self, executor: Executor, task: TaskProgress, **kwargs):
-        zip_path = kwargs.get("zip_path")
-        await self._install_native(executor, task, zip_path)
+        await self._install_native(executor, task, **kwargs)
 
-    async def _install_native(self, executor: Executor, task: TaskProgress, zip_path: str = None):
-        task.update(10, "Vérification des dépendances système (python3, python3-venv, unzip)...")
-        deps_res = await PackageManager.install(executor, "python3 python3-venv unzip", on_output=task.append_log)
+    async def _install_native(self, executor: Executor, task: TaskProgress, **kwargs):
+        zip_path = kwargs.get("zip_path")
+        url = kwargs.get("url") or kwargs.get("download_url")
+        delete_zip = kwargs.get("delete_zip", kwargs.get("cleanup_zip", True))
+
+        task.update(10, "Vérification des dépendances système (python3, python3-venv, unzip, curl, wget)...")
+        deps_res = await PackageManager.install(executor, "python3 python3-venv unzip curl wget", on_output=task.append_log)
         if not deps_res["success"]:
             task.fail(f"Impossible d'installer les dépendances système: {deps_res.get('stderr', '')}")
             return
@@ -48,12 +51,23 @@ class MelodiWebsocketInstaller(BaseInstaller):
             task.fail(f"Erreur création répertoire: {stderr}")
             return
 
+        if url:
+            task.update(30, f"Téléchargement de l'archive WebSocket depuis l'URL ({url})...")
+            dl_path = "/tmp/melodi_ws_download.zip"
+            ok, dl_err = await executor.download_file(url, dl_path, on_output=task.append_log)
+            if not ok:
+                task.fail(f"Échec du téléchargement WebSocket: {dl_err}")
+                return
+            zip_path = dl_path
+
         if zip_path:
             task.update(35, f"Extraction de l'archive ZIP WebSocket ({zip_path})...")
             code, _, stderr = await executor.run_sudo(f"unzip -o {shlex.quote(zip_path)} -d /opt/melodi", on_output=task.append_log)
             if code != 0:
                 task.fail(f"Échec de l'extraction de l'archive ZIP: {stderr.strip()}")
                 return
+            if delete_zip:
+                await executor.run_sudo(f"rm -f {shlex.quote(zip_path)}", on_output=task.append_log)
 
         task.update(50, "Vérification de l'environnement virtuel Python /opt/melodi/venv...")
         check_venv, _, _ = await executor.run("test -f /opt/melodi/venv/bin/python3")

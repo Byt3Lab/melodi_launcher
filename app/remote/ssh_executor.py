@@ -3,6 +3,8 @@ SSHExecutor: Implémentation de Executor pour les serveurs distants via SSH (Sup
 """
 
 import asyncio
+import os
+import shlex
 import time
 from typing import Tuple, Dict, Any, Optional, Callable
 import asyncssh
@@ -190,4 +192,56 @@ class SSHExecutor(Executor):
             "sudo_ready": sudo_ok,
             "error": stderr.strip() if code != 0 else (None if sudo_ok else "Attention: sudo requiert un mot de passe ou NOPASSWD")
         }
+
+    async def upload_file(self, local_path: str, remote_path: str) -> Tuple[bool, str]:
+        """Transfère un fichier local vers le serveur distant via SFTP."""
+        if not os.path.exists(local_path):
+            return False, f"Le fichier local n'existe pas: {local_path}"
+
+        if not await self.is_connected():
+            connected = await self.connect()
+            if not connected:
+                return False, f"Connexion SSH impossible à {self.host}:{self.port}"
+
+        try:
+            assert self._conn is not None
+            # S'assurer que le répertoire cible distant existe (ex: /tmp)
+            dest_dir = os.path.dirname(remote_path)
+            if dest_dir and dest_dir not in ["", "/"]:
+                await self.run(f"mkdir -p {shlex.quote(dest_dir)}")
+
+            async with self._conn.start_sftp_client() as sftp:
+                await sftp.put(local_path, remote_path)
+            return True, ""
+        except Exception as e:
+            return False, f"Erreur de transfert SFTP vers {self.host}: {str(e)}"
+
+    async def download_file(
+        self,
+        url: str,
+        destination_path: str,
+        on_output: Optional[Callable[[str], None]] = None
+    ) -> Tuple[bool, str]:
+        """Télécharge un fichier directement sur le serveur distant depuis une URL."""
+        if not await self.is_connected():
+            connected = await self.connect()
+            if not connected:
+                return False, f"Connexion SSH impossible à {self.host}:{self.port}"
+
+        dest_dir = os.path.dirname(destination_path)
+        if dest_dir and dest_dir not in ["", "/"]:
+            await self.run_sudo(f"mkdir -p {shlex.quote(dest_dir)}")
+
+        cmd = f"curl -fSL -o {shlex.quote(destination_path)} {shlex.quote(url)}"
+        code, stdout, stderr = await self.run(cmd, timeout=600.0, on_output=on_output)
+        if code == 0:
+            return True, ""
+
+        cmd_wget = f"wget -q -O {shlex.quote(destination_path)} {shlex.quote(url)}"
+        code_wget, _, stderr_wget = await self.run(cmd_wget, timeout=600.0, on_output=on_output)
+        if code_wget == 0:
+            return True, ""
+
+        err_msg = stderr.strip() or stderr_wget.strip() or f"Échec du téléchargement distant sur {self.host}"
+        return False, err_msg
 

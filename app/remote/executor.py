@@ -88,3 +88,24 @@ class Executor(ABC):
         """Teste la connectivité et retourne des métriques de diagnostic."""
         pass
 
+    @abstractmethod
+    async def upload_file(self, local_path: str, remote_path: str) -> Tuple[bool, str]:
+        """
+        Transfère un fichier local vers la machine cible (locale ou distante via SFTP).
+        Retourne (success, error_message).
+        """
+        pass
+
+    @abstractmethod
+    async def download_file(
+        self,
+        url: str,
+        destination_path: str,
+        on_output: Optional[Callable[[str], None]] = None
+    ) -> Tuple[bool, str]:
+        """
+        Télécharge un fichier distant depuis une URL vers la machine cible.
+        Retourne (success, error_message).
+        """
+        pass
+

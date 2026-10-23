@@ -61,6 +61,9 @@ class TaskProgress:
         timestamp = time.strftime("%H:%M:%S")
         self.logs.append(f"[{timestamp}] [100%] ✓ {message}")
 
+    def is_failed(self) -> bool:
+        return self.status in ("FAILED", "CANCELLED")
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "task_id": self.task_id,

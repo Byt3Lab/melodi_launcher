@@ -213,7 +213,6 @@ async def upload_file(server_id):
     if not file.filename:
         return jsonify({"success": False, "message": "Nom de fichier manquant."}), 400
 
-    import os
     upload_dir = "/tmp/melodi_uploads"
     os.makedirs(upload_dir, exist_ok=True)
     local_path = os.path.join(upload_dir, file.filename)
@@ -224,20 +223,125 @@ async def upload_file(server_id):
     if not srv:
         return jsonify({"success": False, "message": "Serveur non trouvé."}), 404
 
-    # Si le serveur est distant SSH, transférer le fichier via SFTP/SCP
+    # Si le serveur est distant SSH, transférer le fichier via SFTP/SCP avec Executor
     if server_id != "local":
         executor = sm.get_executor(server_id)
-        if hasattr(executor, "_conn") and executor._conn:
-            try:
-                import asyncssh
-                async with executor._conn.start_sftp_client() as sftp:
-                    remote_path = f"/tmp/{file.filename}"
-                    await sftp.put(local_path, remote_path)
-                    return jsonify({"success": True, "file_path": remote_path, "filename": file.filename})
-            except Exception as e:
-                return jsonify({"success": False, "message": f"Erreur transfert SSH: {str(e)}"}), 500
+        remote_path = f"/tmp/{file.filename}"
+        success, err = await executor.upload_file(local_path, remote_path)
+        if not success:
+            return jsonify({"success": False, "message": f"Erreur transfert SSH: {err}"}), 500
+
+        # Nettoyage de la copie temporaire locale sur le contrôleur
+        try:
+            os.remove(local_path)
+        except Exception:
+            pass
+
+        return jsonify({"success": True, "file_path": remote_path, "filename": file.filename})
 
     return jsonify({"success": True, "file_path": local_path, "filename": file.filename})
+
+@api_bp.route("/servers/<server_id>/melodi/deploy", methods=["POST"])
+async def deploy_melodi_archive(server_id):
+    """
+    Déploie directement l'archive MELODI ERP (fichier local uploadé ou URL) vers le serveur (local ou distant SSH),
+    la décompresse dans le dossier de destination (/opt par défaut) et supprime l'archive ZIP.
+    """
+    sm = get_server_manager()
+    srv = sm.get_server(server_id)
+    if not srv:
+        return jsonify({"success": False, "message": "Serveur non trouvé."}), 404
+
+    executor = sm.get_executor(server_id)
+    tm = get_task_manager()
+    installers_map = get_installers_map()
+    melodi_installer = installers_map.get("melodi")
+
+    if not melodi_installer:
+        return jsonify({"success": False, "message": "Installateur MELODI non trouvé."}), 500
+
+    options = {}
+    uploaded_file_path = None
+
+    # Support Multipart (si fichier uploadé directement dans la requête)
+    req_files = await request.files
+    if req_files and "file" in req_files:
+        file = req_files["file"]
+        if file.filename:
+            upload_dir = "/tmp/melodi_uploads"
+            os.makedirs(upload_dir, exist_ok=True)
+            local_path = os.path.join(upload_dir, file.filename)
+            await file.save(local_path)
+
+            if server_id != "local":
+                remote_path = f"/tmp/{file.filename}"
+                success, err = await executor.upload_file(local_path, remote_path)
+                try:
+                    os.remove(local_path)
+                except Exception:
+                    pass
+                if not success:
+                    return jsonify({"success": False, "message": f"Erreur transfert SSH: {err}"}), 500
+                uploaded_file_path = remote_path
+            else:
+                uploaded_file_path = local_path
+
+        form = await request.form
+        options = dict(form)
+    elif request.is_json:
+        options = await request.get_json() or {}
+
+    effective_zip_path = uploaded_file_path or options.get("zip_path")
+    url = options.get("url") or options.get("download_url")
+    destination_dir = options.get("destination_dir") or options.get("target_dir") or "/opt"
+    delete_zip = options.get("delete_zip", True)
+    if isinstance(delete_zip, str):
+        delete_zip = delete_zip.lower() in ["true", "1", "yes"]
+
+    # Contrôle sudo
+    sudo_password = options.get("sudo_password")
+    save_password = options.get("save_password", False)
+    if isinstance(save_password, str):
+        save_password = save_password.lower() in ["true", "1", "yes"]
+
+    if sudo_password:
+        sm.set_server_sudo_password(server_id, sudo_password, save=save_password)
+    else:
+        configured_pwd = getattr(executor, "sudo_password", None) or getattr(executor, "password", None)
+        if not configured_pwd:
+            sudo_code, _, _ = await executor.run_sudo("whoami", timeout=4.0)
+            if sudo_code != 0:
+                return jsonify({
+                    "success": False,
+                    "requires_sudo": True,
+                    "server_id": server_id,
+                    "server_name": srv.get("name", server_id),
+                    "message": "Privilèges administrateur (sudo) requis pour le déploiement dans " + destination_dir
+                }), 200
+
+    async def task_coro(task_progress):
+        res_dir = await melodi_installer.deploy_archive(
+            executor,
+            task_progress,
+            url=url,
+            zip_path=effective_zip_path,
+            destination_dir=destination_dir,
+            delete_zip=delete_zip
+        )
+        if res_dir and not task_progress.is_failed():
+            task_progress.complete(f"Archive MELODI ERP extraite avec succès dans {res_dir} et ZIP supprimé !")
+
+    task_prog = tm.create_task(
+        name=f"Déploiement MELODI ERP ({'URL' if url else 'Fichier ZIP'}) sur {srv['name']}",
+        server_id=server_id,
+        async_func=task_coro
+    )
+
+    return jsonify({
+        "success": True,
+        "task_id": task_prog.task_id,
+        "message": f"Déploiement de l'archive MELODI ERP vers {destination_dir} lancé en arrière-plan."
+    })
 
 @api_bp.route("/servers/<server_id>/sudo-password", methods=["POST"])
 async def set_server_sudo_pwd(server_id):

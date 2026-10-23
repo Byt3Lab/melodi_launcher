@@ -3,6 +3,9 @@ LocalExecutor: Implémentation de Executor pour la machine locale hôte.
 """
 
 import asyncio
+import os
+import shutil
+import shlex
 import time
 from typing import Tuple, Dict, Any, Optional, Callable
 from app.remote.executor import Executor
@@ -107,4 +110,60 @@ class LocalExecutor(Executor):
             "sudo_ready": sudo_ok,
             "error": stderr.strip() if code != 0 else (None if sudo_ok else "Sudo requiert un mot de passe non configuré")
         }
+
+    async def upload_file(self, local_path: str, remote_path: str) -> Tuple[bool, str]:
+        """Copie un fichier local vers un chemin cible."""
+        if not os.path.exists(local_path):
+            return False, f"Le fichier source n'existe pas: {local_path}"
+
+        try:
+            if os.path.abspath(local_path) == os.path.abspath(remote_path):
+                return True, ""
+
+            dest_dir = os.path.dirname(remote_path)
+            if dest_dir:
+                try:
+                    os.makedirs(dest_dir, exist_ok=True)
+                except PermissionError:
+                    await self.run_sudo(f"mkdir -p {shlex.quote(dest_dir)}")
+
+            try:
+                shutil.copy2(local_path, remote_path)
+                return True, ""
+            except PermissionError:
+                # Si permissions insuffisantes, passer par sudo cp
+                code, _, stderr = await self.run_sudo(f"cp {shlex.quote(local_path)} {shlex.quote(remote_path)}")
+                if code == 0:
+                    return True, ""
+                return False, f"Erreur de copie avec sudo: {stderr}"
+        except Exception as e:
+            return False, f"Erreur de copie locale: {str(e)}"
+
+    async def download_file(
+        self,
+        url: str,
+        destination_path: str,
+        on_output: Optional[Callable[[str], None]] = None
+    ) -> Tuple[bool, str]:
+        """Télécharge un fichier distant depuis une URL vers la machine locale."""
+        dest_dir = os.path.dirname(destination_path)
+        if dest_dir:
+            try:
+                os.makedirs(dest_dir, exist_ok=True)
+            except PermissionError:
+                await self.run_sudo(f"mkdir -p {shlex.quote(dest_dir)}")
+
+        cmd = f"curl -fSL -o {shlex.quote(destination_path)} {shlex.quote(url)}"
+        code, stdout, stderr = await self.run(cmd, timeout=600.0, on_output=on_output)
+        if code == 0:
+            return True, ""
+
+        # Fallback avec wget
+        cmd_wget = f"wget -q -O {shlex.quote(destination_path)} {shlex.quote(url)}"
+        code_wget, _, stderr_wget = await self.run(cmd_wget, timeout=600.0, on_output=on_output)
+        if code_wget == 0:
+            return True, ""
+
+        err_msg = stderr.strip() or stderr_wget.strip() or "Échec du téléchargement (curl/wget)"
+        return False, err_msg
 

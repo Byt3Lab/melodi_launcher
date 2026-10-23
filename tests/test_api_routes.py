@@ -112,3 +112,153 @@ async def test_task_cancel_endpoint(app_instance):
     data_after = await res_after.get_json()
     assert data_after["task"]["status"] == "CANCELLED"
 
+@pytest.mark.asyncio
+async def test_upload_file_endpoint(app_instance, tmp_path):
+    import io
+    from quart.datastructures import FileStorage
+    client = app_instance.test_client()
+
+    fake_file = io.BytesIO(b"dummy zip content")
+    fs = FileStorage(stream=fake_file, filename="melodi_test.zip", content_type="application/zip")
+
+    res = await client.post("/api/servers/local/upload", files={"file": fs})
+    assert res.status_code == 200
+    res_data = await res.get_json()
+    assert res_data["success"] is True
+    assert "melodi_test.zip" in res_data["file_path"]
+    assert os.path.exists(res_data["file_path"])
+    # Nettoyage
+    try:
+        os.remove(res_data["file_path"])
+    except Exception:
+        pass
+
+@pytest.mark.asyncio
+async def test_melodi_deploy_archive_and_delete_zip(app_instance, tmp_path):
+    import zipfile
+    import asyncio
+
+    # 1. Créer une archive ZIP factice
+    zip_path = tmp_path / "melodi_release.zip"
+    dest_dir = tmp_path / "opt_melodi"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("main.py", "print('hello melodi')")
+        zf.writestr("requirements.txt", "# requirements\nquart\n")
+
+    assert zip_path.exists()
+
+    # 2. Exécuter l'installateur Melodi via deploy_archive
+    client = app_instance.test_client()
+    installer = app_instance.config["INSTALLERS_MAP"]["melodi"]
+    executor = app_instance.config["SERVER_MANAGER"].get_executor("local")
+    tm = app_instance.config["TASK_MANAGER"]
+
+    task_prog = tm.create_task(
+        name="Test Deploy Melodi",
+        server_id="local",
+        async_func=lambda tp: installer.deploy_archive(
+            executor,
+            tp,
+            zip_path=str(zip_path),
+            destination_dir=str(dest_dir),
+            delete_zip=True,
+            deploy_only=True
+        )
+    )
+
+    # Attendre la fin de la tâche
+    for _ in range(50):
+        if task_prog.status in ("SUCCESS", "FAILED"):
+            break
+        await asyncio.sleep(0.1)
+
+    assert task_prog.status == "SUCCESS"
+    # Vérifier que les fichiers sont décompressés dans dest_dir
+    assert (dest_dir / "main.py").exists()
+    assert (dest_dir / "requirements.txt").exists()
+    # Vérifier que le fichier zip a été supprimé
+    assert not zip_path.exists()
+
+@pytest.mark.asyncio
+async def test_api_melodi_deploy_endpoint(app_instance, tmp_path):
+    import zipfile
+    import asyncio
+
+    zip_path = tmp_path / "api_test.zip"
+    dest_dir = tmp_path / "api_extracted"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("app_version.txt", "1.0.0")
+
+    client = app_instance.test_client()
+    tm = app_instance.config["TASK_MANAGER"]
+
+    res = await client.post("/api/servers/local/melodi/deploy", json={
+        "zip_path": str(zip_path),
+        "destination_dir": str(dest_dir),
+        "delete_zip": True
+    })
+
+    assert res.status_code == 200
+    data = await res.get_json()
+    assert data["success"] is True
+    assert "task_id" in data
+
+    task_id = data["task_id"]
+    for _ in range(50):
+        task_info = tm.get_task(task_id)
+        if task_info and task_info["status"] in ("SUCCESS", "FAILED"):
+            break
+        await asyncio.sleep(0.1)
+
+    task_final = tm.get_task(task_id)
+    assert task_final["status"] == "SUCCESS"
+    assert (dest_dir / "app_version.txt").exists()
+    assert not zip_path.exists()
+
+@pytest.mark.asyncio
+async def test_api_melodi_deploy_via_url(app_instance, tmp_path):
+    import zipfile
+    import asyncio
+
+    # Créer un zip source qui sera téléchargé via URL file://
+    source_zip = tmp_path / "remote_release.zip"
+    dest_dir = tmp_path / "url_extracted"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    with zipfile.ZipFile(source_zip, "w") as zf:
+        zf.writestr("melodi_online.py", "# online version")
+
+    client = app_instance.test_client()
+    tm = app_instance.config["TASK_MANAGER"]
+
+    res = await client.post("/api/servers/local/melodi/deploy", json={
+        "url": f"file://{source_zip.absolute()}",
+        "destination_dir": str(dest_dir),
+        "delete_zip": True
+    })
+
+    assert res.status_code == 200
+    data = await res.get_json()
+    assert data["success"] is True
+    assert "task_id" in data
+
+    task_id = data["task_id"]
+    for _ in range(50):
+        task_info = tm.get_task(task_id)
+        if task_info and task_info["status"] in ("SUCCESS", "FAILED"):
+            break
+        await asyncio.sleep(0.1)
+
+    task_final = tm.get_task(task_id)
+    assert task_final["status"] == "SUCCESS"
+    assert (dest_dir / "melodi_online.py").exists()
+    # Le fichier temporaire téléchargé doit avoir été supprimé
+    assert not os.path.exists("/tmp/melodi_download.zip")
+
+
+
+
