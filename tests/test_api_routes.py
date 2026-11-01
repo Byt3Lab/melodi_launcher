@@ -68,6 +68,31 @@ async def test_installation_web_pages(app_instance):
         svc_res = await client.get(f"/installation/{service_name}")
         assert svc_res.status_code == 200
 
+
+@pytest.mark.asyncio
+async def test_pwa_shell_partials_and_service_worker(app_instance):
+    client = app_instance.test_client()
+
+    partial = await client.get("/settings?partial=1")
+    partial_html = await partial.get_data(as_text=True)
+    assert partial.status_code == 200
+    assert '<html' not in partial_html
+    assert 'data-melodi-component="settingsComponent"' in partial_html
+
+    service_partial = await client.get("/installation/redis?partial=1")
+    service_html = await service_partial.get_data(as_text=True)
+    assert service_partial.status_code == 200
+    assert 'data-service-name="redis"' in service_html
+
+    worker = await client.get("/service-worker.js")
+    assert worker.status_code == 200
+    assert worker.headers["Service-Worker-Allowed"] == "/"
+    assert "addAll(APP_SHELL)" in await worker.get_data(as_text=True)
+
+    manifest = await client.get("/static/manifest.webmanifest")
+    assert manifest.status_code == 200
+    assert (await manifest.get_json())["display"] == "standalone"
+
 @pytest.mark.asyncio
 async def test_installer_api_info_endpoint(app_instance):
     client = app_instance.test_client()
@@ -258,7 +283,6 @@ async def test_api_melodi_deploy_via_url(app_instance, tmp_path):
     assert (dest_dir / "melodi_online.py").exists()
     # Le fichier temporaire téléchargé doit avoir été supprimé
     assert not os.path.exists("/tmp/melodi_download.zip")
-
 
 
 

@@ -4,20 +4,20 @@
 {% block header_title %}Configuration globale{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto space-y-6 sm:space-y-8" x-data="settingsComponent()">
+<div class="max-w-4xl mx-auto space-y-6 sm:space-y-8" data-melodi-component="settingsComponent">
 
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
             <h3 class="text-xl sm:text-2xl font-bold text-white tracking-tight">Paramètres du Système</h3>
             <p class="text-xs sm:text-sm text-slate-400">Configurez les adresses du serveur web, les répertoires et les fichiers de journaux.</p>
         </div>
-        <button @click="saveSettings()" 
+        <button @click="saveSettings()"
                 :disabled="isSaving"
                 class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold text-xs shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 active:scale-[0.98]">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
             </svg>
-            <span x-text="isSaving ? 'Enregistrement...' : 'Enregistrer'"></span>
+            <span>[[ isSaving ? 'Enregistrement...' : 'Enregistrer' ]]</span>
         </button>
     </div>
 
@@ -31,15 +31,15 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="space-y-1.5">
                     <label class="text-xs text-slate-400 font-medium">Hôte (IP d'écoute)</label>
-                    <input type="text" x-model="form.server.host" 
-                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                    <input type="text"
+                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500" :value="form.server.host" @input="form.server.host = $event.target.value">
                     <p class="text-[11px] text-slate-500">Par défaut 127.0.0.1 (restreint à la machine locale).</p>
                 </div>
 
                 <div class="space-y-1.5">
                     <label class="text-xs text-slate-400 font-medium">Port d'écoute</label>
-                    <input type="number" x-model.number="form.server.port" 
-                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                    <input type="number"
+                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500" :value="form.server.port" @input="form.server.port = Number($event.target.value)">
                 </div>
             </div>
         </div>
@@ -51,29 +51,29 @@
             <div class="space-y-4">
                 <div class="space-y-1.5">
                     <label class="text-xs text-slate-400 font-medium">Répertoire de travail MELODI (Path)</label>
-                    <input type="text" x-model="form.melodi.path" placeholder="/opt/melodi"
-                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                    <input type="text"  placeholder="/opt/melodi"
+                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500" :value="form.melodi.path" @input="form.melodi.path = $event.target.value">
                 </div>
 
                 <div class="space-y-1.5">
                     <label class="text-xs text-slate-400 font-medium">Interpréteur Python spécifique (Virtualenv - optionnel)</label>
-                    <input type="text" x-model="form.melodi.python" placeholder="/opt/melodi/venv/bin/python"
-                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                    <input type="text"  placeholder="/opt/melodi/venv/bin/python"
+                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500" :value="form.melodi.python" @input="form.melodi.python = $event.target.value">
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="space-y-1.5">
                         <label class="text-xs text-slate-400 font-medium">Commande d'exécution ERP</label>
-                        <input type="text" :value="JSON.stringify(form.melodi.command)" 
-                               @input="try { form.melodi.command = JSON.parse($event.target.value) } catch(e) {}"
+                        <input type="text" :value="JSON.stringify(form.melodi.command)"
+                               @input="updateCommand('melodi', $event.target.value)"
                                class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
                         <p class="text-[11px] text-slate-500">Exemple: ["python3", "main.py"]</p>
                     </div>
 
                     <div class="space-y-1.5">
                         <label class="text-xs text-slate-400 font-medium">Port de l'application ERP</label>
-                        <input type="number" x-model.number="form.melodi.port" 
-                               class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                        <input type="number"
+                               class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500" :value="form.melodi.port" @input="form.melodi.port = Number($event.target.value)">
                     </div>
                 </div>
             </div>
@@ -86,30 +86,30 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="space-y-1.5">
                     <label class="text-xs text-slate-400 font-medium">Commande MELODI WebSocket</label>
-                    <input type="text" :value="JSON.stringify(form.melodi_websocket.command)" 
-                           @input="try { form.melodi_websocket.command = JSON.parse($event.target.value) } catch(e) {}"
+                    <input type="text" :value="JSON.stringify(form.melodi_websocket.command)"
+                           @input="updateCommand('melodi_websocket', $event.target.value)"
                            class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
                     <p class="text-[11px] text-slate-500">Par défaut: ["python3", "websocket_server.py"]</p>
                 </div>
 
                 <div class="space-y-1.5">
                     <label class="text-xs text-slate-400 font-medium">Port WebSocket</label>
-                    <input type="number" x-model.number="form.melodi_websocket.port" 
-                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                    <input type="number"
+                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500" :value="form.melodi_websocket.port" @input="form.melodi_websocket.port = Number($event.target.value)">
                 </div>
 
                 <div class="space-y-1.5">
                     <label class="text-xs text-slate-400 font-medium">Commande MELODI Process Manager</label>
-                    <input type="text" :value="JSON.stringify(form.melodi_process_manager.command)" 
-                           @input="try { form.melodi_process_manager.command = JSON.parse($event.target.value) } catch(e) {}"
+                    <input type="text" :value="JSON.stringify(form.melodi_process_manager.command)"
+                           @input="updateCommand('melodi_process_manager', $event.target.value)"
                            class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
                     <p class="text-[11px] text-slate-500">Par défaut: ["python3", "process_manager.py"]</p>
                 </div>
 
                 <div class="space-y-1.5">
                     <label class="text-xs text-slate-400 font-medium">Port Process Manager</label>
-                    <input type="number" x-model.number="form.melodi_process_manager.port" 
-                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                    <input type="number"
+                           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500" :value="form.melodi_process_manager.port" @input="form.melodi_process_manager.port = Number($event.target.value)">
                 </div>
             </div>
         </div>
@@ -120,64 +120,13 @@
 
             <div class="space-y-1.5">
                 <label class="text-xs text-slate-400 font-medium">Chemin du fichier de journal</label>
-                <input type="text" x-model="form.logging.file_path" 
-                       class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500">
+                <input type="text"
+                       class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-mono text-slate-100 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500" :value="form.logging.file_path" @input="form.logging.file_path = $event.target.value">
             </div>
         </div>
 
     </div>
 </div>
 
-<script>
-    function settingsComponent() {
-        return {
-            form: {
-                server: { host: '127.0.0.1', port: 8080 },
-                melodi: { path: '', python: '', command: ['python3', 'main.py'], port: 5000 },
-                melodi_websocket: { path: '', python: '', command: ['python3', 'websocket_server.py'], port: 8001 },
-                melodi_process_manager: { path: '', python: '', command: ['python3', 'process_manager.py'], port: 5002 },
-                logging: { file_path: 'logs/melodi.log' }
-            },
-            isSaving: false,
 
-            init() {
-                this.loadSettings();
-            },
-
-            async loadSettings() {
-                try {
-                    const res = await fetch('/api/settings');
-                    const data = await res.json();
-                    if (data.success) {
-                        this.form = {
-                            ...this.form,
-                            ...data.settings,
-                            melodi_websocket: { ...this.form.melodi_websocket, ...(data.settings.melodi_websocket || {}) },
-                            melodi_process_manager: { ...this.form.melodi_process_manager, ...(data.settings.melodi_process_manager || {}) }
-                        };
-                    }
-                } catch (e) {
-                    console.error("Erreur chargement settings:", e);
-                }
-            },
-
-            async saveSettings() {
-                this.isSaving = true;
-                try {
-                    const res = await fetch('/api/settings', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(this.form)
-                    });
-                    const data = await res.json();
-                    alert(data.message);
-                } catch (e) {
-                    alert("Erreur de sauvegarde des paramètres");
-                } finally {
-                    this.isSaving = false;
-                }
-            }
-        }
-    }
-</script>
 {% endblock %}

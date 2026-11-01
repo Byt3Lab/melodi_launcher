@@ -61,8 +61,8 @@ body {
     box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.25);
 }
 
-/* Alpine Cloak to avoid unrendered flickers */
-[x-cloak] {
+/* Hide toggled UI until MelodiJS has mounted. */
+[data-melodi-cloak] {
     display: none !important;
 }
 

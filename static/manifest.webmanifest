@@ -1,0 +1,38 @@
+{
+  "id": "/",
+  "name": "MELODI Control Center",
+  "short_name": "MELODI",
+  "description": "Supervision des serveurs et services MELODI.",
+  "lang": "fr",
+  "start_url": "/#/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "/static/images/icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Tableau de bord",
+      "short_name": "Accueil",
+      "url": "/#/"
+    },
+    {
+      "name": "Services",
+      "short_name": "Services",
+      "url": "/#/services"
+    },
+    {
+      "name": "Installations",
+      "short_name": "Installation",
+      "url": "/#/installation"
+    }
+  ]
+}

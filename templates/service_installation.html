@@ -4,7 +4,7 @@
 {% block header_title %}Installation & Déploiement : {{ service_name|capitalize }}{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto space-y-8" x-data="serviceInstallComponent('{{ service_name }}')">
+<div class="max-w-5xl mx-auto space-y-8" data-melodi-component="serviceInstallComponent" data-service-name="{{ service_name }}">
 
     <!-- Top Navigation / Breadcrumb -->
     <div class="flex items-center justify-between">
@@ -18,54 +18,54 @@
                 <div class="flex items-center gap-2">
                     <span class="text-xs font-semibold uppercase tracking-wider text-emerald-400">Assistant Dédié</span>
                     <span class="text-slate-600">•</span>
-                    <span class="text-xs text-slate-400" x-text="serviceMeta.subtitle"></span>
+                    <span class="text-xs text-slate-400">[[ serviceMeta.subtitle ]]</span>
                 </div>
                 <h3 class="text-2xl font-bold text-white flex items-center gap-2">
-                    <span x-text="serviceMeta.title"></span>
+                    <span>[[ serviceMeta.title ]]</span>
                 </h3>
             </div>
         </div>
 
         <!-- Quick Tabs between Services (Desktop) -->
         <div class="hidden sm:flex flex-wrap items-center gap-1 bg-slate-950 p-1.5 rounded-xl border border-slate-800 text-xs">
-            <template x-for="item in allServices" :key="item.id">
+
                 <a :href="'/installation/' + item.id"
                    class="px-3 py-1.5 rounded-lg font-medium transition-all"
                    :class="item.id === currentServiceId ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'"
-                   x-text="item.label"></a>
-            </template>
+                   v-for="item in allServices" :key="item.id">[[ item.label ]]</a>
+
         </div>
     </div>
 
     <!-- Quick Switcher Dropdown (Mobile) -->
     <div class="sm:hidden bg-slate-950 p-3 rounded-xl border border-slate-800">
         <label class="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Changer de composant :</label>
-        <select @change="window.location.href = '/installation/' + $event.target.value"
+        <select @change="$router.push('/installation/' + $event.target.value)"
                 class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs font-semibold text-slate-100 focus:ring-1 focus:ring-emerald-500">
-            <template x-for="item in allServices" :key="item.id">
-                <option :value="item.id" x-text="item.label" :selected="item.id === currentServiceId"></option>
-            </template>
+
+                <option :value="item.id" :selected="item.id === currentServiceId" v-for="item in allServices" :key="item.id">[[ item.label ]]</option>
+
         </select>
     </div>
 
     <!-- Active Task Progress Bar -->
-    <template x-if="activeTask">
-        <div class="bg-slate-950 p-6 rounded-2xl border border-emerald-500/40 shadow-xl space-y-4">
+
+        <div class="bg-slate-950 p-6 rounded-2xl border border-emerald-500/40 shadow-xl space-y-4" v-if="activeTask">
             <div class="flex items-center justify-between">
                 <div>
-                    <h4 class="font-bold text-slate-100 text-base" x-text="activeTask.name"></h4>
-                    <p class="text-xs text-slate-400" x-text="activeTask.current_step"></p>
+                    <h4 class="font-bold text-slate-100 text-base">[[ activeTask.name ]]</h4>
+                    <p class="text-xs text-slate-400">[[ activeTask.current_step ]]</p>
                 </div>
 
                 <div class="flex items-center gap-3">
-                    <button x-show="activeTask.status === 'RUNNING'"
+                    <button v-show="activeTask.status === 'RUNNING'"
                             @click="cancelTask(activeTask.task_id)"
                             :disabled="isCancelling"
                             class="text-xs px-3 py-1 rounded-lg font-medium bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 transition-all flex items-center gap-1.5 shadow-sm">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                         </svg>
-                        <span x-text="isCancelling ? 'Arrêt...' : 'Interrompre'"></span>
+                        <span>[[ isCancelling ? 'Arrêt...' : 'Interrompre' ]]</span>
                     </button>
 
                     <span class="text-xs px-3 py-1 rounded-full font-mono font-bold"
@@ -74,7 +74,7 @@
                               'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30': activeTask.status === 'SUCCESS',
                               'bg-rose-500/10 text-rose-400 border border-rose-500/30': activeTask.status === 'FAILED' || activeTask.status === 'CANCELLED'
                           }"
-                          x-text="activeTask.status + ' (' + activeTask.progress + '%)'"></span>
+                         >[[ activeTask.status + ' (' + activeTask.progress + '%)' ]]</span>
                 </div>
             </div>
 
@@ -87,25 +87,25 @@
             <!-- Task Log Terminal Output Header -->
             <div class="flex items-center justify-between text-xs text-slate-400 border-b border-slate-800/80 pb-2">
                 <div class="flex items-center gap-2 font-mono">
-                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" x-show="activeTask.status === 'RUNNING'"></span>
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" v-show="activeTask.status === 'RUNNING'"></span>
                     <span class="font-bold text-slate-200">Journal d'installation en direct</span>
-                    <span class="text-[10px] text-slate-500 font-mono" x-text="'(' + (activeTask.logs ? activeTask.logs.length : 0) + ' lignes)'"></span>
+                    <span class="text-[10px] text-slate-500 font-mono">[[ '(' + (activeTask.logs ? activeTask.logs.length : 0) + ' lignes)' ]]</span>
                 </div>
                 <div class="flex items-center gap-2">
                     <button @click="autoScroll = !autoScroll"
                             :class="autoScroll ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' : 'text-slate-400 bg-slate-900 border-slate-800'"
                             class="px-2 py-0.5 rounded text-[11px] border font-mono transition-all">
-                        <span x-text="autoScroll ? 'Auto-scroll: ON' : 'Auto-scroll: OFF'"></span>
+                        <span>[[ autoScroll ? 'Auto-scroll: ON' : 'Auto-scroll: OFF' ]]</span>
                     </button>
                 </div>
             </div>
 
             <!-- Task Log Terminal Output Box -->
-            <div x-ref="taskLogsContainer"
+            <div id="taskLogsContainer"
                  class="bg-[#020617] p-4 rounded-xl border border-slate-800 font-mono text-xs text-slate-300 max-h-72 overflow-y-auto space-y-0.5 shadow-inner">
-                <template x-for="(line, idx) in activeTask.logs" :key="idx">
-                    <div class="leading-relaxed hover:bg-slate-900/50 px-1 rounded flex items-start gap-2">
-                        <span class="text-slate-600 select-none text-[10px] w-6 text-right" x-text="idx + 1"></span>
+
+                    <div class="leading-relaxed hover:bg-slate-900/50 px-1 rounded flex items-start gap-2" v-for="(line, idx) in activeTask.logs" :key="idx">
+                        <span class="text-slate-600 select-none text-[10px] w-6 text-right">[[ idx + 1 ]]</span>
                         <span class="flex-1 break-all whitespace-pre-wrap font-mono"
                               :class="{
                                   'text-emerald-400 font-semibold': line.includes('✓') || line.includes('succès') || line.includes('SUCCESS'),
@@ -113,16 +113,16 @@
                                   'text-cyan-400 font-medium': line.includes('➔') || line.includes('Initialisation'),
                                   'text-slate-300': !line.includes('✓') && !line.includes('❌') && !line.includes('➔')
                               }"
-                              x-text="line"></span>
+                             >[[ line ]]</span>
                     </div>
-                </template>
-                <div x-show="activeTask.status === 'RUNNING'" class="flex items-center gap-1.5 text-emerald-400 text-xs pt-1 animate-pulse">
+
+                <div v-show="activeTask.status === 'RUNNING'" class="flex items-center gap-1.5 text-emerald-400 text-xs pt-1 animate-pulse">
                     <span class="inline-block w-2 h-3.5 bg-emerald-400"></span>
                     <span class="text-[11px] text-slate-500 font-mono">Exécution de la commande en cours...</span>
                 </div>
             </div>
         </div>
-    </template>
+
 
     <!-- Main Service Installation Card & Details -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -134,15 +134,15 @@
                 <div class="flex items-center gap-4">
                     <div class="w-14 h-14 rounded-2xl flex items-center justify-center font-bold text-xl shadow-lg"
                          :class="serviceMeta.colorClass">
-                        <span x-text="serviceMeta.badge"></span>
+                        <span>[[ serviceMeta.badge ]]</span>
                     </div>
                     <div>
-                        <h4 class="font-bold text-white text-lg" x-text="serviceMeta.title"></h4>
-                        <span class="text-xs text-slate-400" x-text="serviceMeta.category"></span>
+                        <h4 class="font-bold text-white text-lg">[[ serviceMeta.title ]]</h4>
+                        <span class="text-xs text-slate-400">[[ serviceMeta.category ]]</span>
                     </div>
                 </div>
 
-                <p class="text-xs text-slate-400 leading-relaxed" x-text="serviceMeta.description"></p>
+                <p class="text-xs text-slate-400 leading-relaxed">[[ serviceMeta.description ]]</p>
 
                 <!-- Current State on Active Server -->
                 <div class="p-4 rounded-xl bg-slate-900 border border-slate-800/80 space-y-3">
@@ -150,26 +150,26 @@
                         <span class="text-slate-400">État du service :</span>
                         <span class="px-2.5 py-1 rounded-full font-semibold border text-[11px]"
                               :class="statusInfo.is_running ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : (statusInfo.is_installed ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-rose-500/10 text-rose-400 border-rose-500/30')">
-                            <span x-text="statusInfo.status_text || 'Chargement...'"></span>
+                            <span>[[ statusInfo.status_text || 'Chargement...' ]]</span>
                         </span>
                     </div>
 
                     <div class="flex items-center justify-between text-xs">
                         <span class="text-slate-400">Port par défaut :</span>
-                        <span class="font-mono text-slate-200" x-text="serviceMeta.port ? serviceMeta.port : 'N/A'"></span>
+                        <span class="font-mono text-slate-200">[[ serviceMeta.port ? serviceMeta.port : 'N/A' ]]</span>
                     </div>
 
                     <div class="flex items-center justify-between text-xs">
                         <span class="text-slate-400">Gestionnaire :</span>
-                        <span class="font-mono text-emerald-400" x-text="serviceMeta.unitFile"></span>
+                        <span class="font-mono text-emerald-400">[[ serviceMeta.unitFile ]]</span>
                     </div>
                 </div>
 
                 <!-- Mode Options Form (ZIP upload / URL pour les composants MELODI) -->
                 <div class="space-y-4 pt-3 border-t border-slate-800">
                     <!-- MELODI Components: Source Selection (Local File or URL) -->
-                    <template x-if="['melodi', 'melodi_websocket', 'melodi_process_manager'].includes(currentServiceId)">
-                        <div class="space-y-3">
+
+                        <div class="space-y-3" v-if="['melodi', 'melodi_websocket', 'melodi_process_manager'].includes(currentServiceId)">
                             <label class="text-xs font-semibold text-slate-300">Source de l'application (.zip) :</label>
 
                             <!-- Source Type Selector -->
@@ -191,26 +191,26 @@
                             </div>
 
                             <!-- Mode 1: Fichier Local ZIP -->
-                            <div x-show="sourceType === 'file'" class="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-2">
+                            <div v-show="sourceType === 'file'" class="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-2">
                                 <input type="file" accept=".zip" @change="handleFileSelect($event)" class="text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 w-full" />
-                                <template x-if="uploadedZipPath">
-                                    <p class="text-[11px] text-emerald-400 flex items-center gap-1 font-mono">
-                                        ✓ Fichier prêt : <span x-text="uploadedZipName"></span>
+
+                                    <p class="text-[11px] text-emerald-400 flex items-center gap-1 font-mono" v-if="uploadedZipPath">
+                                        ✓ Fichier prêt : <span>[[ uploadedZipName ]]</span>
                                     </p>
-                                </template>
-                                <template x-if="isUploading">
-                                    <p class="text-[11px] text-amber-400 animate-pulse flex items-center gap-1">
+
+
+                                    <p class="text-[11px] text-amber-400 animate-pulse flex items-center gap-1" v-if="isUploading">
                                         <span>Téléversement vers le serveur en cours...</span>
                                     </p>
-                                </template>
+
                             </div>
 
                             <!-- Mode 2: URL de Téléchargement -->
-                            <div x-show="sourceType === 'url'" class="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-2">
+                            <div v-show="sourceType === 'url'" class="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-2">
                                 <input type="url"
-                                       x-model="downloadUrl"
+
                                        placeholder="https://example.com/melodi-release.zip"
-                                       class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 font-mono" />
+                                       class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 font-mono" v-model="downloadUrl">
                                 <p class="text-[11px] text-slate-500">Téléchargement direct (curl/wget) exécuté sur la machine cible.</p>
                             </div>
 
@@ -218,30 +218,30 @@
                             <div class="space-y-2 pt-1">
                                 <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Dossier de destination :</label>
                                 <input type="text"
-                                       x-model="destinationDir"
+
                                        placeholder="/opt"
-                                       class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-emerald-500" />
+                                       class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-emerald-500" v-model="destinationDir">
                                 <p class="text-[10px] text-slate-500">Par défaut : /opt</p>
 
                                 <label class="flex items-center gap-2 pt-1 cursor-pointer select-none">
-                                    <input type="checkbox" x-model="deleteZipAfterExtract" class="rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-800" />
+                                    <input type="checkbox"  class="rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-800" v-model="deleteZipAfterExtract">
                                     <span class="text-xs text-slate-300">Supprimer le fichier ZIP après décompression</span>
                                 </label>
                             </div>
                         </div>
-                    </template>
+
 
                     <!-- Launch Buttons -->
                     <div class="space-y-2 pt-2">
                         <!-- Déployer Archive Uniquement (Spécifique Melodi) -->
-                        <template x-if="currentServiceId === 'melodi'">
+
                             <button @click="triggerDeployArchive()"
                                     :disabled="(activeTask && activeTask.status === 'RUNNING') || isUploading"
-                                    class="w-full py-2.5 px-4 rounded-xl text-slate-200 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-700 font-semibold text-xs transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow">
+                                    class="w-full py-2.5 px-4 rounded-xl text-slate-200 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-700 font-semibold text-xs transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow" v-if="currentServiceId === 'melodi'">
                                 <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
                                 <span>Déployer l'Archive uniquement (/opt)</span>
                             </button>
-                        </template>
+
 
                         <!-- Installation Complète (Service systemd) -->
                         <button @click="triggerInstall()"
@@ -251,7 +251,7 @@
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                             </svg>
-                            <span x-text="activeTask && activeTask.status === 'RUNNING' ? 'Installation en cours...' : (statusInfo.is_installed ? 'Réinstaller / Mettre à jour' : 'Installation Complète')"></span>
+                            <span>[[ activeTask && activeTask.status === 'RUNNING' ? 'Installation en cours...' : (statusInfo.is_installed ? 'Réinstaller / Mettre à jour' : 'Installation Complète') ]]</span>
                         </button>
                         <p class="text-[11px] text-center text-slate-500">Installation directe et automatisée sur la machine cible.</p>
                     </div>
@@ -275,21 +275,21 @@
                 </div>
 
                 <div class="space-y-4">
-                    <template x-for="(step, index) in serviceMeta.steps" :key="index">
-                        <div class="flex items-start gap-3 p-3.5 rounded-xl bg-slate-900 border border-slate-800/80">
+
+                        <div class="flex items-start gap-3 p-3.5 rounded-xl bg-slate-900 border border-slate-800/80" v-for="(step, index) in serviceMeta.steps" :key="index">
                             <div class="w-6 h-6 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5"
-                                 x-text="index + 1"></div>
+                                >[[ index + 1 ]]</div>
                             <div class="space-y-1">
-                                <h5 class="text-xs font-semibold text-slate-200" x-text="step.title"></h5>
-                                <p class="text-xs text-slate-400 leading-relaxed" x-text="step.description"></p>
-                                <template x-if="step.cmd">
-                                    <div class="mt-2 font-mono text-[11px] bg-slate-950 px-3 py-1.5 rounded-lg text-emerald-300 border border-slate-800">
-                                        <span class="text-slate-500">$ </span><span x-text="step.cmd"></span>
+                                <h5 class="text-xs font-semibold text-slate-200">[[ step.title ]]</h5>
+                                <p class="text-xs text-slate-400 leading-relaxed">[[ step.description ]]</p>
+
+                                    <div class="mt-2 font-mono text-[11px] bg-slate-950 px-3 py-1.5 rounded-lg text-emerald-300 border border-slate-800" v-if="step.cmd">
+                                        <span class="text-slate-500">$ </span><span>[[ step.cmd ]]</span>
                                     </div>
-                                </template>
+
                             </div>
                         </div>
-                    </template>
+
                 </div>
             </div>
 
@@ -305,19 +305,19 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                     <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
                         <span class="text-slate-400">Emplacement Principal :</span>
-                        <p class="font-mono text-slate-200" x-text="serviceMeta.paths.app"></p>
+                        <p class="font-mono text-slate-200">[[ serviceMeta.paths.app ]]</p>
                     </div>
                     <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
                         <span class="text-slate-400">Fichier / Volume :</span>
-                        <p class="font-mono text-slate-200" x-text="serviceMeta.paths.config"></p>
+                        <p class="font-mono text-slate-200">[[ serviceMeta.paths.config ]]</p>
                     </div>
                     <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
                         <span class="text-slate-400">Journal des Logs :</span>
-                        <p class="font-mono text-slate-200" x-text="serviceMeta.paths.logs"></p>
+                        <p class="font-mono text-slate-200">[[ serviceMeta.paths.logs ]]</p>
                     </div>
                     <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
                         <span class="text-slate-400">Gestionnaire :</span>
-                        <p class="font-mono text-slate-200" x-text="serviceMeta.unitFile"></p>
+                        <p class="font-mono text-slate-200">[[ serviceMeta.unitFile ]]</p>
                     </div>
                 </div>
             </div>
@@ -327,7 +327,7 @@
     </div>
 
     <!-- Modal Mot de Passe Sudo Requis -->
-    <div x-show="showSudoModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm" style="display: none;" x-cloak>
+    <div v-show="showSudoModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm" style="display: none;" data-melodi-cloak>
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full space-y-5 shadow-2xl">
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
@@ -337,7 +337,7 @@
                 </div>
                 <div>
                     <h3 class="text-base font-bold text-white">Privilèges Administrateur (Sudo)</h3>
-                    <p class="text-xs text-slate-400">Cette installation nécessite des droits root sur <span class="text-emerald-400 font-semibold" x-text="sudoServerName"></span>.</p>
+                    <p class="text-xs text-slate-400">Cette installation nécessite des droits root sur <span class="text-emerald-400 font-semibold">[[ sudoServerName ]]</span>.</p>
                 </div>
             </div>
 
@@ -346,19 +346,19 @@
                     <label class="text-slate-300 font-medium">Mot de passe Sudo</label>
                     <div class="relative">
                         <input :type="showSudoText ? 'text' : 'password'"
-                               x-model="sudoPasswordInput"
+
                                @keydown.enter="confirmSudoAndInstall()"
                                placeholder="Saisissez votre mot de passe sudo..."
-                               class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:ring-emerald-500 focus:border-emerald-500 pr-10">
+                               class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 font-mono focus:ring-emerald-500 focus:border-emerald-500 pr-10" v-model="sudoPasswordInput">
                         <button type="button" @click="showSudoText = !showSudoText" class="absolute right-3 top-2.5 text-slate-400 hover:text-slate-200">
-                            <span x-text="showSudoText ? '🙈' : '👁️'"></span>
+                            <span>[[ showSudoText ? '🙈' : '👁️' ]]</span>
                         </button>
                     </div>
                     <p class="text-[11px] text-slate-500">Injecté de manière sécurisée sans être enregistré dans les journaux.</p>
                 </div>
 
                 <label class="flex items-center gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800 cursor-pointer select-none">
-                    <input type="checkbox" x-model="rememberSudoPassword" class="rounded text-emerald-500 focus:ring-emerald-500">
+                    <input type="checkbox"  class="rounded text-emerald-500 focus:ring-emerald-500" v-model="rememberSudoPassword">
                     <div class="text-xs">
                         <span class="font-medium text-slate-200">Mémoriser pour ce serveur</span>
                         <p class="text-[11px] text-slate-500">Enregistre le mot de passe dans la configuration pour les futures commandes.</p>
@@ -382,387 +382,5 @@
 
 </div>
 
-<script>
-    const SERVICES_DATA = {
-        melodi: {
-            id: 'melodi',
-            title: 'MELODI ERP',
-            subtitle: 'Application Principale & Logique Métier',
-            category: 'Application ERP',
-            badge: 'M',
-            colorClass: 'bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950',
-            btnColorClass: 'bg-emerald-600 hover:bg-emerald-500',
-            unitFile: 'melodi.service',
-            port: 5000,
-            description: "Déploie l'application serveur centrale de MELODI ERP via extraction ZIP sur la machine hôte avec environnement virtuel Python et service systemd.",
-            paths: {
-                app: '/opt/melodi',
-                config: '/opt/melodi/config/config.json',
-                logs: '/var/log/melodi.log'
-            },
-            steps: [
-                { title: "1. Dépendances système", description: "Installation de Python 3, venv, unzip et outils de compilation.", cmd: "apt-get install -y python3 python3-venv unzip git" },
-                { title: "2. Décompression du ZIP source", description: "Extraction de l'archive ZIP fournie par l'utilisateur vers /opt/melodi.", cmd: "unzip archive.zip -d /opt/melodi" },
-                { title: "3. Environnement virtuel Python", description: "Création du venv et installation des dépendances pip.", cmd: "/opt/melodi/venv/bin/pip install -r requirements.txt" },
-                { title: "4. Activation Systemd", description: "Enregistrement de melodi.service pour démarrage automatique.", cmd: "systemctl enable --now melodi" }
-            ]
-        },
-        melodi_websocket: {
-            id: 'melodi_websocket',
-            title: 'MELODI WebSocket',
-            subtitle: 'Serveur WebSocket Temps Réel & Notifications',
-            category: 'Temps Réel MELODI',
-            badge: 'WS',
-            colorClass: 'bg-cyan-500/20 border border-cyan-500/30 text-cyan-400',
-            btnColorClass: 'bg-cyan-600 hover:bg-cyan-500',
-            unitFile: 'melodi-websocket.service',
-            port: 8001,
-            description: "Déploie et configure le serveur WebSocket temps réel de MELODI ERP pour la diffusion instantanée des événements et notifications aux utilisateurs connectés.",
-            paths: {
-                app: '/opt/melodi',
-                config: '/opt/melodi/websocket_server.py',
-                logs: '/var/log/melodi-websocket.log'
-            },
-            steps: [
-                { title: "1. Vérification de l'environnement", description: "Vérifie Python 3, venv et le dossier /opt/melodi.", cmd: "python3 -m venv /opt/melodi/venv" },
-                { title: "2. Extraction ZIP (si fourni)", description: "Mise à jour des fichiers WebSocket dans /opt/melodi.", cmd: "unzip -o archive.zip -d /opt/melodi" },
-                { title: "3. Dépendances Python", description: "Installation des paquets requis dans le virtualenv.", cmd: "/opt/melodi/venv/bin/pip install -r requirements.txt" },
-                { title: "4. Service Systemd", description: "Création et activation de melodi-websocket.service.", cmd: "systemctl enable --now melodi-websocket" }
-            ]
-        },
-        melodi_process_manager: {
-            id: 'melodi_process_manager',
-            title: 'MELODI Process Manager',
-            subtitle: 'Gestionnaire de Processus & Tâches Asynchrones',
-            category: 'Orchestration MELODI',
-            badge: 'PM',
-            colorClass: 'bg-amber-500/20 border border-amber-500/30 text-amber-400',
-            btnColorClass: 'bg-amber-600 hover:bg-amber-500',
-            unitFile: 'melodi-process-manager.service',
-            port: 5002,
-            description: "Déploie et configure le gestionnaire de processus de MELODI ERP chargé de superviser les workers, files d'attente et traitements planifiés en arrière-plan.",
-            paths: {
-                app: '/opt/melodi',
-                config: '/opt/melodi/process_manager.py',
-                logs: '/var/log/melodi-process-manager.log'
-            },
-            steps: [
-                { title: "1. Vérification de l'environnement", description: "Vérifie Python 3, venv et le dossier /opt/melodi.", cmd: "python3 -m venv /opt/melodi/venv" },
-                { title: "2. Extraction ZIP (si fourni)", description: "Mise à jour des fichiers Process Manager dans /opt/melodi.", cmd: "unzip -o archive.zip -d /opt/melodi" },
-                { title: "3. Dépendances Python", description: "Installation des paquets requis dans le virtualenv.", cmd: "/opt/melodi/venv/bin/pip install -r requirements.txt" },
-                { title: "4. Service Systemd", description: "Création et activation de melodi-process-manager.service.", cmd: "systemctl enable --now melodi-process-manager" }
-            ]
-        },
-        pgadmin: {
-            id: 'pgadmin',
-            title: 'pgAdmin 4 (Web)',
-            subtitle: 'Gestionnaire Web de Base de Données',
-            category: 'Gestion Base de données',
-            badge: '🐘',
-            colorClass: 'bg-blue-500/20 border border-blue-500/30 text-blue-400',
-            btnColorClass: 'bg-blue-600 hover:bg-blue-500',
-            unitFile: 'pgadmin4-web',
-            port: 5050,
-            description: "Interface web officielle et complète d'administration pour vos bases PostgreSQL (exploration des tables, requêtes SQL interactives, création de schémas et suivi des performances).",
-            paths: {
-                app: '/var/lib/pgadmin',
-                config: '/etc/pgadmin/config.py',
-                logs: '/var/log/pgadmin4.log'
-            },
-            steps: [
-                { title: "1. Dépôt pgAdmin officiel", description: "Configuration des clés APT officielles PostgreSQL / pgAdmin.", cmd: "curl -fsS https://www.pgadmin.org/... | gpg" },
-                { title: "2. Installation APT", description: "Installation du paquet pgadmin4-web.", cmd: "apt-get install -y pgadmin4-web" }
-            ]
-        },
-        postgresql: {
-            id: 'postgresql',
-            title: 'PostgreSQL Database',
-            subtitle: 'Moteur Relationnel SQL Persistant',
-            category: 'Base de données',
-            badge: 'PG',
-            colorClass: 'bg-indigo-500/20 border border-indigo-500/30 text-indigo-400',
-            btnColorClass: 'bg-indigo-600 hover:bg-indigo-500',
-            unitFile: 'postgresql.service',
-            port: 5432,
-            description: "Système de gestion de base de données relationnelle objet performant et sécurisé, stockage principal des entités et transactions de MELODI ERP.",
-            paths: {
-                app: '/var/lib/postgresql',
-                config: '/etc/postgresql/*/main/postgresql.conf',
-                logs: '/var/log/postgresql/'
-            },
-            steps: [
-                { title: "1. Vérification des paquets", description: "Vérifie si PostgreSQL est présent.", cmd: "dpkg -s postgresql" },
-                { title: "2. Installation via APT", description: "Installation de postgresql et postgresql-contrib.", cmd: "apt-get install -y postgresql postgresql-contrib" },
-                { title: "3. Activation", description: "Démarrage immédiat et activation au boot.", cmd: "systemctl enable --now postgresql" }
-            ]
-        },
-        redis: {
-            id: 'redis',
-            title: 'Redis Server',
-            subtitle: 'Cache Mémoire & Courtier de Messages',
-            category: 'Cache & Queue',
-            badge: 'RD',
-            colorClass: 'bg-rose-500/20 border border-rose-500/30 text-rose-400',
-            btnColorClass: 'bg-rose-600 hover:bg-rose-500',
-            unitFile: 'redis-server.service',
-            port: 6379,
-            description: "Structure de données en mémoire ultra-rapide servant de cache applicatif, gestionnaire de sessions et broker de messages pour Celery.",
-            paths: {
-                app: '/var/lib/redis',
-                config: '/etc/redis/redis.conf',
-                logs: '/var/log/redis/redis-server.log'
-            },
-            steps: [
-                { title: "1. Installation APT", description: "Installation du paquet redis-server.", cmd: "apt-get install -y redis-server" },
-                { title: "2. Démarrage", description: "Activation et démarrage immédiat.", cmd: "systemctl enable --now redis-server" }
-            ]
-        }
-    };
 
-    function serviceInstallComponent(initialService) {
-        return {
-            currentServiceId: initialService,
-            serviceMeta: SERVICES_DATA[initialService] || SERVICES_DATA.melodi,
-            allServices: [
-                { id: 'melodi', label: 'MELODI ERP' },
-                { id: 'melodi_websocket', label: 'WebSocket' },
-                { id: 'melodi_process_manager', label: 'Process Manager' },
-                { id: 'postgresql', label: 'PostgreSQL' },
-                { id: 'redis', label: 'Redis' },
-                { id: 'pgadmin', label: 'pgAdmin 4' }
-            ],
-            statusInfo: {
-                is_installed: false,
-                is_running: false,
-                status_text: 'Vérification...'
-            },
-            autoScroll: true,
-            showSudoModal: false,
-            sudoPasswordInput: '',
-            showSudoText: false,
-            rememberSudoPassword: true,
-            sudoServerName: '',
-            pendingPayload: null,
-            uploadedZipPath: null,
-            uploadedZipName: null,
-            sourceType: 'file',
-            downloadUrl: '',
-            destinationDir: '/opt',
-            deleteZipAfterExtract: true,
-            isDeployOnly: false,
-            isUploading: false,
-            isCancelling: false,
-            activeTask: null,
-            activeTaskId: null,
-            timer: null,
-
-            init() {
-                this.loadStatus();
-                setInterval(() => {
-                    if (!this.activeTaskId) {
-                        this.loadStatus();
-                    }
-                }, 3000);
-            },
-
-            async loadStatus() {
-                const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
-                try {
-                    const res = await fetch(`/api/servers/${activeServerId}/installers/${this.currentServiceId}`);
-                    const data = await res.json();
-                    if (data.success && data.service) {
-                        this.statusInfo = data.service;
-                    }
-                } catch (e) {}
-            },
-
-            async handleFileSelect(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
-                const formData = new FormData();
-                formData.append('file', file);
-
-                this.isUploading = true;
-                try {
-                    const res = await fetch(`/api/servers/${activeServerId}/upload`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        this.uploadedZipPath = data.file_path;
-                        this.uploadedZipName = data.filename;
-                    } else {
-                        alert(data.message || "Erreur de téléversement");
-                    }
-                } catch (err) {
-                    alert("Échec du téléversement du fichier ZIP");
-                } finally {
-                    this.isUploading = false;
-                }
-            },
-
-            triggerDeployArchive() {
-                const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
-                if (this.sourceType === 'url' && !this.downloadUrl.trim()) {
-                    alert("Veuillez saisir une URL de téléchargement valide.");
-                    return;
-                }
-                if (this.sourceType === 'file' && !this.uploadedZipPath) {
-                    alert("Veuillez d'abord sélectionner une archive ZIP à téléverser.");
-                    return;
-                }
-                if (!confirm(`Confirmer le déploiement de l'archive MELODI ERP dans ${this.destinationDir || '/opt'} ?`)) return;
-
-                const payload = {
-                    source_type: this.sourceType,
-                    url: this.downloadUrl.trim() || null,
-                    zip_path: this.uploadedZipPath,
-                    destination_dir: this.destinationDir || '/opt',
-                    delete_zip: this.deleteZipAfterExtract
-                };
-                this.isDeployOnly = true;
-                this.pendingPayload = payload;
-                this.executeDeploy(payload);
-            },
-
-            executeDeploy(payload) {
-                const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
-
-                fetch(`/api/servers/${activeServerId}/melodi/deploy`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.requires_sudo) {
-                        this.sudoServerName = data.server_name || activeServerId;
-                        this.showSudoModal = true;
-                        return;
-                    }
-
-                    if (data.success) {
-                        this.showSudoModal = false;
-                        this.activeTaskId = data.task_id;
-                        this.pollTask();
-                        if (this.timer) clearInterval(this.timer);
-                        this.timer = setInterval(() => this.pollTask(), 600);
-                    } else {
-                        alert(data.message || "Erreur de déploiement.");
-                    }
-                })
-                .catch(e => alert("Erreur réseau lors du déploiement de l'archive."));
-            },
-
-            triggerInstall() {
-                const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
-                if (this.sourceType === 'url' && !this.downloadUrl.trim()) {
-                    if (!confirm("Aucune URL spécifiée. Continuer l'installation sans télécharger de nouvelle archive ?")) return;
-                }
-                if (!confirm(`Confirmer le lancement de l'installation de ${this.serviceMeta.title} sur le serveur sélectionné ?`)) return;
-
-                const payload = {
-                    source_type: this.sourceType,
-                    url: this.downloadUrl.trim() || null,
-                    zip_path: this.uploadedZipPath,
-                    destination_dir: this.destinationDir || '/opt',
-                    delete_zip: this.deleteZipAfterExtract
-                };
-                this.isDeployOnly = false;
-                this.pendingPayload = payload;
-                this.executeInstall(payload);
-            },
-
-            executeInstall(payload) {
-                const activeServerId = localStorage.getItem('melodi_active_server_id') || 'local';
-
-                fetch(`/api/servers/${activeServerId}/installers/${this.currentServiceId}/install`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.requires_sudo) {
-                        this.sudoServerName = data.server_name || activeServerId;
-                        this.showSudoModal = true;
-                        return;
-                    }
-
-                    if (data.success) {
-                        this.showSudoModal = false;
-                        this.activeTaskId = data.task_id;
-                        this.pollTask();
-                        if (this.timer) clearInterval(this.timer);
-                        this.timer = setInterval(() => this.pollTask(), 600);
-                    } else {
-                        alert(data.message);
-                    }
-                })
-                .catch(e => alert("Erreur au lancement de l'installation."));
-            },
-
-            confirmSudoAndInstall() {
-                if (!this.sudoPasswordInput) return;
-                const payload = {
-                    ...(this.pendingPayload || {}),
-                    sudo_password: this.sudoPasswordInput,
-                    save_password: this.rememberSudoPassword
-                };
-                if (this.isDeployOnly) {
-                    this.executeDeploy(payload);
-                } else {
-                    this.executeInstall(payload);
-                }
-            },
-
-            async cancelTask(taskId) {
-                if (!taskId) return;
-                if (!confirm("Êtes-vous sûr de vouloir interrompre cette opération en cours ?")) return;
-                try {
-                    this.isCancelling = true;
-                    const res = await fetch(`/api/tasks/${taskId}/cancel`, { method: 'POST' });
-                    const data = await res.json();
-                    if (data.success) {
-                        await this.pollTask();
-                    } else {
-                        alert(data.message || "Impossible d'interrompre la tâche.");
-                    }
-                } catch (e) {
-                    alert("Erreur lors de l'interruption de la tâche.");
-                } finally {
-                    this.isCancelling = false;
-                }
-            },
-
-            async pollTask() {
-                if (!this.activeTaskId) return;
-                try {
-                    const res = await fetch(`/api/tasks/${this.activeTaskId}`);
-                    const data = await res.json();
-                    if (data.success) {
-                        this.activeTask = data.task;
-                        if (this.autoScroll) {
-                            this.$nextTick(() => {
-                                const container = this.$refs.taskLogsContainer;
-                                if (container) {
-                                    container.scrollTop = container.scrollHeight;
-                                }
-                            });
-                        }
-                        if (this.activeTask.status === 'SUCCESS' || this.activeTask.status === 'FAILED' || this.activeTask.status === 'CANCELLED') {
-                            if (this.timer) clearInterval(this.timer);
-                            this.activeTaskId = null;
-                            this.loadStatus();
-                        }
-                    }
-                } catch (e) {}
-            }
-        }
-    }
-
-</script>
 {% endblock %}

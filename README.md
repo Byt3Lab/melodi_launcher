@@ -119,10 +119,14 @@ Le projet peut être empaqueté sous forme d’exécutable autonome pour Linux v
 ### Stack technologique
 
 - Backend : Python 3.10+, Quart, Hypercorn, `asyncssh`, `psutil`
-- Frontend : HTML5, Jinja2, Tailwind CSS, Alpine.js
+- Frontend : HTML5, Jinja2, Tailwind CSS, MelodiJS et le client REST `melodi.api`
 - Configuration : `config/config.json` et `config/servers.json`
 
 Le backend est asynchrone et conçu pour gérer plusieurs connexions simultanées, ce qui est particulièrement adapté à la supervision de serveurs, à la collecte de logs et à la gestion de sessions SSH.
+
+MelodiJS et son client REST sont servis depuis `static/js/` pour que l'interface reste utilisable sans charger de framework depuis un CDN.
+
+L'interface utilise MelodiRouter en mode historique (URL propres, sans fragment `#`) et MelodiStore pour partager l'état entre les vues sans rechargement complet. Les routes restent accessibles directement et le serveur fournit la coque de l'application pour les liens profonds. Le manifest et le service worker permettent l'installation comme PWA et mettent en cache la coque ainsi que les vues. Les commandes de supervision et les données des serveurs nécessitent toujours une connexion au launcher.
 
 ---
 
