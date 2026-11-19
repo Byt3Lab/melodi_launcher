@@ -2,6 +2,7 @@
 SystemInfo: Collecting system health metrics (CPU, RAM, Disk, Uptime) locally and remotely.
 """
 
+import os
 import psutil
 import time
 from typing import Dict, Any
@@ -20,7 +21,7 @@ class SystemInfo:
     def _get_local_metrics() -> Dict[str, Any]:
         cpu_pct = psutil.cpu_percent(interval=None)
         mem = psutil.virtual_memory()
-        disk = psutil.disk_usage('/')
+        disk = psutil.disk_usage(os.path.abspath(os.sep))
         boot_time = psutil.boot_time()
         uptime_sec = time.time() - boot_time
 
@@ -45,13 +46,32 @@ class SystemInfo:
 
     @staticmethod
     async def _get_remote_metrics(executor: Executor) -> Dict[str, Any]:
-        # Exécuter un script léger en une seule commande SSH
-        cmd = (
-            "echo CPU: $(top -bn1 | grep 'Cpu(s)' | awk '{print $2 + $4}') && "
-            "echo MEM: $(free -m | awk 'NR==2{printf \"%.1f %.1f %.1f\", $3/1024, $2/1024, $3*100/$2}') && "
-            "echo DISK: $(df -h / | awk 'NR==2{printf \"%s %s %s\", $3, $2, $5}') && "
-            "echo UPTIME: $(uptime -p || uptime)"
-        )
+        if await executor.is_windows():
+            ps = (
+                "powershell -NoProfile -Command \""
+                "$cpu = (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average; "
+                "$os = Get-CimInstance Win32_OperatingSystem; "
+                "$tot = [math]::Round($os.TotalVisibleMemorySize / 1MB, 1); "
+                "$used = [math]::Round(($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / 1MB, 1); "
+                "$mpct = [math]::Round($used * 100 / $tot, 1); "
+                "$d = Get-CimInstance Win32_LogicalDisk -Filter \\\"DeviceID='C:'\\\"; "
+                "$dtot = [math]::Round($d.Size / 1GB, 1); "
+                "$dused = [math]::Round(($d.Size - $d.FreeSpace) / 1GB, 1); "
+                "$dpct = [math]::Round($dused * 100 / $dtot, 1); "
+                "$up = (Get-Date) - $os.LastBootUpTime; "
+                "Write-Output ('CPU: ' + $cpu); "
+                "Write-Output ('MEM: ' + $used + ' ' + $tot + ' ' + $mpct); "
+                "Write-Output ('DISK: ' + $dused + ' ' + $dtot + ' ' + $dpct); "
+                "Write-Output ('UPTIME: ' + $up.Days + 'd ' + $up.Hours + 'h ' + $up.Minutes + 'm')\""
+            )
+            cmd = ps
+        else:
+            cmd = (
+                "echo CPU: $(top -bn1 | grep 'Cpu(s)' | awk '{print $2 + $4}') && "
+                "echo MEM: $(free -m | awk 'NR==2{printf \"%.1f %.1f %.1f\", $3/1024, $2/1024, $3*100/$2}') && "
+                "echo DISK: $(df -h / | awk 'NR==2{printf \"%s %s %s\", $3, $2, $5}') && "
+                "echo UPTIME: $(uptime -p || uptime)"
+            )
         code, stdout, _ = await executor.run(cmd, timeout=5.0)
         if code != 0:
             return {

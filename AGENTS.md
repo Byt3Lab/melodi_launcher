@@ -6,10 +6,10 @@ Ce document fournit le contexte, l'architecture et les règles essentielles conc
 
 ## 📌 Contexte du Projet
 
-**MELODI Launcher** est une **application de bureau 100% Tkinter native d'administration et d'orchestration pour MELODI ERP**.
+**MELODI Launcher** est une **application de bureau native PySide6 (Qt 6) + `qasync` d'administration et d'orchestration pour MELODI ERP**.
 Elle permet de déployer et de gérer MELODI ERP sur une machine locale ou un serveur distant via des connexions SSH sécurisées non-bloquantes (`asyncssh`).
 
-L'application ne dépend d'aucun serveur web, ne nécessite aucun navigateur et démarre instantanément en tant qu'application native.
+L'application ne dépend d'aucun serveur web, ne nécessite aucun navigateur et intègre directement la boucle `asyncio` dans la boucle Qt via `qasync`.
 
 ---
 
@@ -19,30 +19,27 @@ L'application ne dépend d'aucun serveur web, ne nécessite aucun navigateur et 
 melodi_launcher/
 │
 ├── app/
-│   ├── ui/                     # Interface graphique 100% Tkinter
-│   │   ├── main_window.py      # Fenêtre principale et navigation par onglets
-│   │   ├── async_worker.py     # Pont asynchrone non-bloquant (Thread + asyncio loop)
-│   │   ├── theme.py            # Styles ttk et palette sombre (Slate / Tailwind)
-│   │   └── components/         # Composants d'interface (Server, Install, Service, System, Console)
-│   │       ├── server_panel.py   # Sélecteur Cible (Local vs SSH) et test de connexion
-│   │       ├── install_panel.py  # Assistant déploiement MELODI ERP & dépendances
-│   │       ├── service_panel.py  # Pilotage des services (melodi, postgres, redis)
-│   │       ├── system_panel.py   # Métriques système (CPU, RAM, Disque, Uptime)
-│   │       └── console_panel.py  # Console de logs en direct & barre de progression
+│   ├── ui/                     # Interface graphique PySide6 + qasync
+│   │   ├── main_window.py      # Fenêtre principale, navigation latérale et pile de pages
+│   │   ├── sidebar.py          # Barre latérale, sélecteur de serveur et bascule de thème
+│   │   ├── app_context.py      # État partagé, signaux Qt (logs, toasts, thème, serveur actif)
+│   │   ├── theme/              # Design tokens & QSS (sombre et clair)
+│   │   ├── widgets/            # Card, StatusPill, MetricGauge, Stepper, Toast, LogView, Icon
+│   │   └── pages/              # Dashboard, InstallWizard (5 étapes), Services, Logs, Servers
 │   │
 │   ├── core/                   # ServerManager, TaskManager, ProcessManager
-│   ├── remote/                 # Executor, LocalExecutor, SSHExecutor, CredentialManager
+│   ├── remote/                 # Executor, LocalExecutor, SSHExecutor, CredentialManager (keyring)
 │   ├── system/                 # PackageManager, SystemdManager, SystemInfo
 │   ├── installers/             # BaseInstaller, MelodiInstaller, Postgres, Redis
 │   └── services/               # BaseService, Melodi, Postgres, Redis
 │
-├── assets/                     # Icônes et images
-├── config/                     # servers.json (profils serveurs sauvegardés)
-├── tests/                      # Suite de tests automatisés pytest
-├── gui_launcher.py             # Point d'entrée principal Tkinter
+├── assets/                     # Icônes SVG (assets/icons/) et logo
+├── config/                     # servers.json (sans mots de passe en clair)
+├── tests/                      # Suite de tests pytest + pytest-qt
+├── gui_launcher.py             # Point d'entrée principal PySide6 + qasync
 ├── run.py                      # Raccourci d'exécution
-├── build.sh                    # Script PyInstaller
-├── requirements.txt            # Dépendances Python allégées (asyncssh, psutil, pyinstaller, pytest)
+├── build.sh                    # Script PyInstaller (launcher.spec)
+├── requirements.txt            # PySide6-Essentials, qasync, keyring, asyncssh, psutil
 ├── README.md
 └── AGENTS.md
 ```
@@ -51,18 +48,20 @@ melodi_launcher/
 
 ## 🚀 Principes & Règles d'Architecture
 
-1. **Non-Blocage de l'Interface Graphique (Tkinter Mainloop)** :
-   - Tkinter s'exécute sur le thread principal.
-   - Toutes les opérations longues (connexions SSH, commandes système, transferts SFTP, apt-get, pip) doivent impérativement être exécutées via `AsyncWorker.run_coroutine(...)`.
-   - Les retours vers l'UI (mises à jour de logs, progression, messages) doivent transiter par `AsyncWorker.call_in_gui(...)` ou `root.after_idle(...)`.
+1. **Non-Blocage de l'Interface Graphique (Boucle unique `qasync`)** :
+   - Les actions asynchrones dans les pages et dialogues utilisent `@asyncSlot()` de `qasync` et `await` directement les coroutines métier sans geler l'interface Qt.
+   - Ne jamais exécuter d'opérations réseau ou système bloquantes dans le thread UI.
 
 2. **Abstraction d'Exécution Unifiée** :
    - Ne jamais appeler directement de commandes shell ou SSH brutes dans l'UI.
-   - Toujours passer par l'interface `Executor` (`LocalExecutor` ou `SSHExecutor`) fournie par le `ServerPanel` ou le `ServerManager`.
+   - Toujours passer par l'interface `Executor` (`LocalExecutor` ou `SSHExecutor`) fournie par `AppContext.executor` / `ServerManager`.
 
 3. **Sécurité SSH & Privilèges** :
-   - Ne jamais enregistrer de clés privées ou de mots de passe en clair dans des fichiers publics.
-   - Utiliser des permissions strictes sur les fichiers de configuration locaux (`servers.json`).
+   - Ne jamais enregistrer de clés privées ou de mots de passe en clair dans `config/servers.json` ou tout autre fichier public.
+   - Utiliser `CredentialManager` (trousseau système `keyring`) et des permissions `0o600` sur `servers.json`.
 
 4. **Compatibilité PyInstaller** :
-   - Utiliser `resource_path("config")` et `resource_path("assets")` pour résoudre les ressources sous PyInstaller (`sys._MEIPASS`).
+   - Utiliser `resource_path("config")`, `resource_path("assets")` et `resource_path("locales")` pour résoudre les ressources sous PyInstaller (`sys._MEIPASS`).
+
+5. **Internationalisation (i18n FR / EN)** :
+   - Aucune chaîne affichée à l'utilisateur en dur : toujours passer par `t("clé")` (`app/i18n.py`) et ajouter la clé dans `locales/fr.json` ET `locales/en.json`.

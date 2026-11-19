@@ -8,6 +8,7 @@ import shlex
 import time
 from typing import Tuple, Dict, Any, Optional, Callable
 import asyncssh
+from app.i18n import t
 from app.remote.executor import Executor
 
 class SSHExecutor(Executor):
@@ -85,7 +86,7 @@ class SSHExecutor(Executor):
         if not await self.is_connected():
             connected = await self.connect()
             if not connected:
-                return (-1, "", f"Impossible d'établir la connexion SSH avec {self.host}:{self.port}")
+                return (-1, "", t("executor.ssh.conn_failed"))
 
         try:
             assert self._conn is not None
@@ -107,7 +108,7 @@ class SSHExecutor(Executor):
                         str(result.stderr or "")
                     )
                 except asyncio.TimeoutError:
-                    return (-1, "", f"Timeout SSH après {timeout}s sur la commande: {command}")
+                    return (-1, "", t("executor.ssh.timeout", timeout=timeout))
 
             # Mode streaming temps réel via process
             proc = await self._conn.create_process(command, encoding="utf-8")
@@ -150,7 +151,7 @@ class SSHExecutor(Executor):
                     await proc.wait()
                 except Exception:
                     pass
-                return (-1, "".join(stdout_lines), f"Timeout SSH après {timeout}s sur la commande: {command}")
+                return (-1, "".join(stdout_lines), t("executor.ssh.timeout", timeout=timeout))
             except asyncio.CancelledError:
                 try:
                     proc.terminate()
@@ -173,7 +174,18 @@ class SSHExecutor(Executor):
                 "success": False,
                 "latency_ms": 0,
                 "system_uname": "",
-                "error": f"Connexion SSH impossible à {self.username}@{self.host}:{self.port}"
+                "error": t("executor.ssh.conn_failed")
+            }
+
+        if await self.is_windows():
+            code, stdout, stderr = await self.run("ver", timeout=5.0)
+            latency = round((time.time() - start) * 1000, 2)
+            return {
+                "success": code == 0,
+                "latency_ms": latency,
+                "system_uname": stdout.strip() if code == 0 else "",
+                "sudo_ready": True,
+                "error": stderr.strip() if code != 0 else None
             }
 
         code, stdout, stderr = await self.run("uname -a", timeout=5.0)
@@ -196,12 +208,12 @@ class SSHExecutor(Executor):
     async def upload_file(self, local_path: str, remote_path: str) -> Tuple[bool, str]:
         """Transfère un fichier local vers le serveur distant via SFTP."""
         if not os.path.exists(local_path):
-            return False, f"Le fichier local n'existe pas: {local_path}"
+            return False, t("executor.local.file_not_found", path=local_path)
 
         if not await self.is_connected():
             connected = await self.connect()
             if not connected:
-                return False, f"Connexion SSH impossible à {self.host}:{self.port}"
+                return False, t("executor.ssh.conn_failed")
 
         try:
             assert self._conn is not None
@@ -227,6 +239,18 @@ class SSHExecutor(Executor):
             connected = await self.connect()
             if not connected:
                 return False, f"Connexion SSH impossible à {self.host}:{self.port}"
+
+        if await self.is_windows():
+            ps_cmd = (
+                f'powershell -NoProfile -Command '
+                f'"$d = Split-Path -Parent \'{destination_path}\'; '
+                f'if ($d) {{ New-Item -ItemType Directory -Force -Path $d | Out-Null }}; '
+                f'Invoke-WebRequest -Uri \'{url}\' -OutFile \'{destination_path}\'"'
+            )
+            code, _, stderr = await self.run(ps_cmd, timeout=600.0, on_output=on_output)
+            if code == 0:
+                return True, ""
+            return False, stderr.strip() or f"Download failed on {self.host}"
 
         dest_dir = os.path.dirname(destination_path)
         if dest_dir and dest_dir not in ["", "/"]:

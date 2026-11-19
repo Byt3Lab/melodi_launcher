@@ -1,5 +1,5 @@
 """
-MELODI Launcher Desktop UI (100% Tkinter).
+MELODI Launcher Desktop UI (PySide6 + qasync).
 """
 
 from app.ui.main_window import MainWindow

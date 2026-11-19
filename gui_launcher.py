@@ -1,17 +1,28 @@
 #!/usr/bin/env python3
 """
-MELODI Launcher Desktop: Application 100% Tkinter pour l'orchestration et le déploiement de MELODI ERP.
-Permet d'installer et d'administrer MELODI ERP en local ou sur un serveur distant via SSH.
+MELODI Launcher Desktop: Application native PySide6 + qasync pour l'orchestration de MELODI ERP.
 """
 
 import sys
-import tkinter as tk
+import asyncio
+from PySide6.QtWidgets import QApplication
+from qasync import QEventLoop
 from app.ui.main_window import MainWindow
 
+
 def main():
-    root = tk.Tk()
-    app = MainWindow(root)
-    root.mainloop()
+    app = QApplication(sys.argv)
+    app.setApplicationName("MELODI Control Center")
+
+    loop = QEventLoop(app)
+    asyncio.set_event_loop(loop)
+
+    window = MainWindow()
+    window.show()
+
+    with loop:
+        loop.run_forever()
+
 
 if __name__ == "__main__":
     main()

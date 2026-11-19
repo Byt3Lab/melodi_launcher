@@ -5,9 +5,11 @@ ServerManager: Managing registered servers (local and remote SSH) and their Exec
 import json
 import os
 from typing import Dict, List, Optional, Any
+from app.i18n import t
 from app.remote.executor import Executor
 from app.remote.local_executor import LocalExecutor
 from app.remote.ssh_executor import SSHExecutor
+from app.remote.credential_manager import CredentialManager
 from app.utils.helpers import get_project_root
 
 DEFAULT_SERVERS = [
@@ -29,12 +31,24 @@ class ServerManager:
         if servers_file_path is None:
             servers_file_path = os.path.join(get_project_root(), "config", "servers.json")
         self.servers_file_path = servers_file_path
+        self.credentials = CredentialManager()
         self._servers: Dict[str, Dict[str, Any]] = {}
         self._executors: Dict[str, Executor] = {}
         self.load()
 
+    def _extract_and_store_secrets(self, server_id: str, data: Dict[str, Any]) -> bool:
+        """Migre les mots de passe hors du dictionnaire JSON vers le trousseau système."""
+        migrated = False
+        for key in ("password", "sudo_password"):
+            val = data.pop(key, None)
+            if val:
+                self.credentials.store_secret(server_id, key, val)
+                migrated = True
+        return migrated
+
     def load(self):
         """Charge les serveurs depuis servers.json ou initialise avec localhost."""
+        migrated_any = False
         if os.path.exists(self.servers_file_path):
             try:
                 with open(self.servers_file_path, "r", encoding="utf-8") as f:
@@ -42,26 +56,37 @@ class ServerManager:
                 if isinstance(data, list):
                     for item in data:
                         if isinstance(item, dict) and "id" in item:
-                            self._servers[item["id"]] = item
+                            sid = item["id"]
+                            if self._extract_and_store_secrets(sid, item):
+                                migrated_any = True
+                            self._servers[sid] = item
             except Exception as e:
                 print(f"[ServerManager] Error loading servers.json ({e}), using default localhost.")
 
         if "local" not in self._servers:
-            self._servers["local"] = DEFAULT_SERVERS[0]
+            self._servers["local"] = dict(DEFAULT_SERVERS[0])
+            self.save()
+        elif migrated_any:
             self.save()
 
         # Instancier l'exécuteur local avec mot de passe éventuel
-        local_srv = self._servers.get("local", {})
-        local_pass = local_srv.get("sudo_password") or local_srv.get("password")
+        local_pass = self.credentials.get_secret("local", "sudo_password") or self.credentials.get_secret("local", "password")
         self._executors["local"] = LocalExecutor(password=local_pass)
 
-
     def save(self) -> bool:
-        """Sauvegarde la liste des serveurs dans servers.json."""
+        """Sauvegarde la liste des serveurs dans servers.json sans secrets en clair."""
         try:
             os.makedirs(os.path.dirname(self.servers_file_path), exist_ok=True)
+            sanitized = []
+            for srv in self._servers.values():
+                clean = {k: v for k, v in srv.items() if k not in ("password", "sudo_password")}
+                sanitized.append(clean)
             with open(self.servers_file_path, "w", encoding="utf-8") as f:
-                json.dump(list(self._servers.values()), f, indent=4, ensure_ascii=False)
+                json.dump(sanitized, f, indent=4, ensure_ascii=False)
+            try:
+                os.chmod(self.servers_file_path, 0o600)
+            except OSError:
+                pass
             return True
         except Exception as e:
             print(f"[ServerManager] Save error: {e}")
@@ -81,14 +106,16 @@ class ServerManager:
             return self._executors[server_id]
 
         srv = self.get_server(server_id)
+        pwd = self.credentials.get_secret(server_id, "password")
+        sudo_pwd = self.credentials.get_secret(server_id, "sudo_password")
+
         if not srv or srv.get("type") == "local":
-            password = (srv.get("sudo_password") or srv.get("password")) if srv else None
-            executor = LocalExecutor(password=password)
+            executor = LocalExecutor(password=sudo_pwd or pwd)
         else:
             auth_method = srv.get("auth_method", "key")
             key_path = srv.get("key_path") if auth_method == "key" or not srv.get("auth_method") else None
-            ssh_password = srv.get("password") if auth_method == "password" else None
-            sudo_password = srv.get("sudo_password") or srv.get("password")
+            ssh_password = pwd if auth_method == "password" else None
+            sudo_password = sudo_pwd or pwd
 
             executor = SSHExecutor(
                 host=srv.get("host", "127.0.0.1"),
@@ -107,8 +134,8 @@ class ServerManager:
         if not srv:
             return False
 
-        srv["sudo_password"] = sudo_password
-        srv["password"] = sudo_password
+        self.credentials.store_secret(server_id, "sudo_password", sudo_password)
+        self.credentials.store_secret(server_id, "password", sudo_password)
 
         if server_id in self._executors:
             executor = self._executors[server_id]
@@ -121,20 +148,24 @@ class ServerManager:
 
     def add_server(self, server_data: Dict[str, Any]) -> Dict[str, Any]:
         """Ajoute un nouveau serveur distant."""
-        server_id = server_data.get("id") or f"srv_{int(os.urandom(3).hex(), 16)}"
-        server_data["id"] = server_id
-        server_data["type"] = server_data.get("type", "ssh")
-        
-        self._servers[server_id] = server_data
+        data = dict(server_data)
+        server_id = data.get("id") or f"srv_{int(os.urandom(3).hex(), 16)}"
+        data["id"] = server_id
+        data["type"] = data.get("type", "ssh")
+        self._extract_and_store_secrets(server_id, data)
+
+        self._servers[server_id] = data
         self.save()
-        return {"success": True, "server": server_data}
+        return {"success": True, "server": data}
 
     def update_server(self, server_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
         """Met à jour les détails d'un serveur et réinitialise son exécuteur."""
         if server_id not in self._servers:
-            return {"success": False, "message": "Serveur non trouvé."}
+            return {"success": False, "message": t("server_mgr.not_found")}
 
-        self._servers[server_id].update(updates)
+        upd = dict(updates)
+        self._extract_and_store_secrets(server_id, upd)
+        self._servers[server_id].update(upd)
         self.save()
 
         # Invalider l'ancien exécuteur s'il existe
@@ -146,16 +177,18 @@ class ServerManager:
     def delete_server(self, server_id: str) -> Dict[str, Any]:
         """Supprime un serveur distant (localhost ne peut pas être supprimé)."""
         if server_id == "local":
-            return {"success": False, "message": "Impossible de supprimer le serveur local default."}
+            return {"success": False, "message": t("server_mgr.cannot_delete_local")}
 
         if server_id in self._servers:
             del self._servers[server_id]
             if server_id in self._executors:
                 del self._executors[server_id]
+            self.credentials.delete_secret(server_id, "password")
+            self.credentials.delete_secret(server_id, "sudo_password")
             self.save()
-            return {"success": True, "message": "Serveur supprimé avec succès."}
+            return {"success": True, "message": t("server_mgr.deleted")}
 
-        return {"success": False, "message": "Serveur introuvable."}
+        return {"success": False, "message": t("server_mgr.unknown")}
 
     async def test_server_connection(self, server_id: str) -> Dict[str, Any]:
         """Teste la connectivité réseau/SSH d'un serveur."""

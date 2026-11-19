@@ -1,13 +1,24 @@
 """
-CredentialManager: Managing SSH key paths and credential security.
+CredentialManager: Managing SSH key paths and secure credential storage via OS keyring.
 """
 
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+
+try:
+    import keyring
+    from keyring.errors import KeyringError
+except ImportError:  # pragma: no cover
+    keyring = None
+    KeyringError = Exception
+
+SERVICE_NAME = "melodi-launcher"
+
 
 class CredentialManager:
     def __init__(self):
         self.ssh_dir = os.path.expanduser("~/.ssh")
+        self._fallback_store: Dict[str, str] = {}
 
     def discover_ssh_keys(self) -> List[Dict[str, Any]]:
         """Détecte les clés SSH privées disponibles dans ~/.ssh/"""
@@ -33,3 +44,41 @@ class CredentialManager:
         if keys:
             return keys[0]["path"]
         return os.path.expanduser("~/.ssh/id_rsa")
+
+    def store_secret(self, server_id: str, kind: str, value: Optional[str]) -> None:
+        """Stocke un secret (password / sudo_password) dans le trousseau système."""
+        account = f"{server_id}:{kind}"
+        if not value:
+            self.delete_secret(server_id, kind)
+            return
+        self._fallback_store[account] = value
+        if keyring is not None:
+            try:
+                keyring.set_password(SERVICE_NAME, account, value)
+            except Exception:
+                pass
+
+    def get_secret(self, server_id: str, kind: str) -> Optional[str]:
+        """Récupère un secret depuis le trousseau système (ou le cache mémoire)."""
+        account = f"{server_id}:{kind}"
+        if account in self._fallback_store:
+            return self._fallback_store[account]
+        if keyring is not None:
+            try:
+                val = keyring.get_password(SERVICE_NAME, account)
+                if val is not None:
+                    self._fallback_store[account] = val
+                return val
+            except Exception:
+                return None
+        return None
+
+    def delete_secret(self, server_id: str, kind: str) -> None:
+        """Supprime un secret du trousseau système."""
+        account = f"{server_id}:{kind}"
+        self._fallback_store.pop(account, None)
+        if keyring is not None:
+            try:
+                keyring.delete_password(SERVICE_NAME, account)
+            except Exception:
+                pass

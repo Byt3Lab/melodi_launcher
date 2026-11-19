@@ -12,6 +12,34 @@ class Executor(ABC):
         self.name = name
         self.password: Optional[str] = None
         self.sudo_password: Optional[str] = None
+        self._os_family: Optional[str] = None
+
+    async def detect_os(self) -> str:
+        """Détecte automatiquement l'OS de la cible ('windows', 'linux', 'darwin')."""
+        if self._os_family:
+            return self._os_family
+        code, stdout, _ = await self.run("uname -s", timeout=5.0)
+        if code == 0:
+            low = stdout.strip().lower()
+            if "linux" in low:
+                self._os_family = "linux"
+                return self._os_family
+            if "darwin" in low:
+                self._os_family = "darwin"
+                return self._os_family
+            if "mingw" in low or "msys" in low or "cygwin" in low:
+                self._os_family = "windows"
+                return self._os_family
+        code_w, stdout_w, _ = await self.run("ver", timeout=5.0)
+        if code_w == 0 and "windows" in stdout_w.lower():
+            self._os_family = "windows"
+            return self._os_family
+        self._os_family = "linux"
+        return self._os_family
+
+    async def is_windows(self) -> bool:
+        """Retourne True si la machine cible tourne sous Windows."""
+        return (await self.detect_os()) == "windows"
 
     @abstractmethod
     async def connect(self) -> bool:
@@ -49,10 +77,14 @@ class Executor(ABC):
         on_output: Optional[Callable[[str], None]] = None
     ) -> Tuple[int, str, str]:
         """
-        Exécute une commande avec privilèges administrateur (sudo).
+        Exécute une commande avec privilèges administrateur (sudo sous Linux, direct sous Windows).
         Gère intelligemment l'utilisateur root, sudo -n (NOPASSWD) et sudo -S (mot de passe).
         Transmet les sorties en temps réel via on_output.
         """
+        # 0. Sous Windows, pas de sudo/bash : exécuter directement
+        if await self.is_windows():
+            return await self.run(command, timeout=timeout, on_output=on_output)
+
         # 1. Vérifier si l'utilisateur courant est déjà root
         code_root, stdout_root, _ = await self.run("whoami", timeout=5.0)
         if code_root == 0 and stdout_root.strip() == "root":

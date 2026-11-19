@@ -4,10 +4,13 @@ LocalExecutor: Implémentation de Executor pour la machine locale hôte.
 
 import asyncio
 import os
+import platform
 import shutil
 import shlex
 import time
+import urllib.request
 from typing import Tuple, Dict, Any, Optional, Callable
+from app.i18n import t
 from app.remote.executor import Executor
 
 class LocalExecutor(Executor):
@@ -24,6 +27,12 @@ class LocalExecutor(Executor):
 
     async def is_connected(self) -> bool:
         return True
+
+    async def detect_os(self) -> str:
+        """Détection instantanée de l'OS local sans sous-processus."""
+        if not self._os_family:
+            self._os_family = platform.system().lower()
+        return self._os_family
 
     async def run(
         self,
@@ -79,7 +88,7 @@ class LocalExecutor(Executor):
                     await process.wait()
                 except Exception:
                     pass
-                return (-1, "".join(stdout_lines), f"Timeout de la commande après {timeout}s")
+                return (-1, "".join(stdout_lines), t("executor.local.timeout", timeout=timeout))
             except asyncio.CancelledError:
                 try:
                     process.kill()
@@ -94,6 +103,16 @@ class LocalExecutor(Executor):
 
     async def test_connection(self) -> Dict[str, Any]:
         start = time.time()
+        if await self.is_windows():
+            latency = round((time.time() - start) * 1000, 2)
+            return {
+                "success": True,
+                "latency_ms": latency,
+                "system_uname": platform.platform(),
+                "sudo_ready": True,
+                "error": None
+            }
+
         code, stdout, stderr = await self.run("uname -a")
         latency = round((time.time() - start) * 1000, 2)
 
@@ -114,7 +133,7 @@ class LocalExecutor(Executor):
     async def upload_file(self, local_path: str, remote_path: str) -> Tuple[bool, str]:
         """Copie un fichier local vers un chemin cible."""
         if not os.path.exists(local_path):
-            return False, f"Le fichier source n'existe pas: {local_path}"
+            return False, t("executor.local.file_not_found", path=local_path)
 
         try:
             if os.path.abspath(local_path) == os.path.abspath(remote_path):
@@ -145,13 +164,20 @@ class LocalExecutor(Executor):
         destination_path: str,
         on_output: Optional[Callable[[str], None]] = None
     ) -> Tuple[bool, str]:
-        """Télécharge un fichier distant depuis une URL vers la machine locale."""
+        """Télécharge un fichier distant depuis une URL vers la machine locale (Linux & Windows)."""
         dest_dir = os.path.dirname(destination_path)
         if dest_dir:
             try:
                 os.makedirs(dest_dir, exist_ok=True)
             except PermissionError:
                 await self.run_sudo(f"mkdir -p {shlex.quote(dest_dir)}")
+
+        if await self.is_windows():
+            try:
+                await asyncio.to_thread(urllib.request.urlretrieve, url, destination_path)
+                return True, ""
+            except Exception as exc:
+                return False, str(exc)
 
         cmd = f"curl -fSL -o {shlex.quote(destination_path)} {shlex.quote(url)}"
         code, stdout, stderr = await self.run(cmd, timeout=600.0, on_output=on_output)

@@ -6,6 +6,7 @@ import asyncio
 import uuid
 import time
 from typing import Dict, Any, Optional, List, Callable
+from app.i18n import t
 
 class TaskProgress:
     def __init__(self, task_id: str, name: str, server_id: str):
@@ -14,7 +15,7 @@ class TaskProgress:
         self.server_id = server_id
         self.status = "PENDING"  # PENDING, RUNNING, SUCCESS, FAILED
         self.progress = 0  # 0 to 100
-        self.current_step = "Initialisation..."
+        self.current_step = t("task.init")
         self.logs: List[str] = []
         self.error: Optional[str] = None
         self.created_at = time.time()
@@ -33,12 +34,13 @@ class TaskProgress:
         timestamp = time.strftime("%H:%M:%S")
         self.logs.append(f"[{timestamp}] ❌ ERREUR: {error_message}")
 
-    def cancel(self, message: str = "Tâche interrompue par l'utilisateur."):
+    def cancel(self, message: Optional[str] = None):
+        msg = message or t("task.cancelled")
         self.status = "CANCELLED"
-        self.error = message
+        self.error = msg
         self.finished_at = time.time()
         timestamp = time.strftime("%H:%M:%S")
-        self.logs.append(f"[{timestamp}] ⏹️ {message}")
+        self.logs.append(f"[{timestamp}] ⏹️ {msg}")
 
     def append_log(self, text: str):
         """Ajoute des sorties brutes de commandes ou terminal en direct."""
@@ -53,13 +55,14 @@ class TaskProgress:
         if len(self.logs) > 2000:
             self.logs = self.logs[-2000:]
 
-    def complete(self, message: str = "Tâche terminée avec succès."):
+    def complete(self, message: Optional[str] = None):
+        msg = message or t("task.completed")
         self.status = "SUCCESS"
         self.progress = 100
-        self.current_step = message
+        self.current_step = msg
         self.finished_at = time.time()
         timestamp = time.strftime("%H:%M:%S")
-        self.logs.append(f"[{timestamp}] [100%] ✓ {message}")
+        self.logs.append(f"[{timestamp}] [100%] ✓ {msg}")
 
     def is_failed(self) -> bool:
         return self.status in ("FAILED", "CANCELLED")

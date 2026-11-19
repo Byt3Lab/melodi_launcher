@@ -1,13 +1,14 @@
 """
 RedisInstaller: Automated installer for Redis In-Memory Data Store.
-Installs Redis Server natively via system package manager and systemd.
 """
 
+from app.i18n import t
 from app.installers.base import BaseInstaller
 from app.remote.executor import Executor
 from app.core.task_manager import TaskProgress
 from app.system.package_manager import PackageManager
 from app.system.systemd_manager import SystemdManager
+
 
 class RedisInstaller(BaseInstaller):
     def __init__(self):
@@ -17,21 +18,21 @@ class RedisInstaller(BaseInstaller):
         await self._install_native(executor, task)
 
     async def _install_native(self, executor: Executor, task: TaskProgress):
-        task.update(10, "Vérification des prérequis système...")
+        task.update(10, t("installer.redis.checking"))
         if await PackageManager.is_installed(executor, "redis-server"):
-            task.complete("Redis Server est déjà installé sur le système.")
+            task.complete(t("installer.redis.already"))
             return
 
-        task.update(35, "Installation du paquet système 'redis-server'...")
+        task.update(35, t("installer.redis.installing"))
         res = await PackageManager.install(executor, "redis-server", on_output=task.append_log)
         if not res["success"]:
-            task.fail(f"Échec d'installation du paquet: {res.get('stderr', '')}")
+            task.fail(t("installer.redis.apt_failed", error=res.get("stderr", "")))
             return
 
-        task.update(75, "Démarrage et activation du service systemd 'redis-server'...")
+        task.update(75, t("installer.redis.starting"))
         start_res = await SystemdManager.start(executor, "redis-server", on_output=task.append_log)
         if not start_res["success"]:
             task.fail(start_res["message"])
             return
 
-        task.complete("Redis natif installé et démarré avec succès !")
+        task.complete(t("installer.redis.done"))
