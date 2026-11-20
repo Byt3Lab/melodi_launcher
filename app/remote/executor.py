@@ -121,7 +121,12 @@ class Executor(ABC):
         pass
 
     @abstractmethod
-    async def upload_file(self, local_path: str, remote_path: str) -> Tuple[bool, str]:
+    async def upload_file(
+        self,
+        local_path: str,
+        remote_path: str,
+        on_progress: Optional[Callable[[int, int], None]] = None
+    ) -> Tuple[bool, str]:
         """
         Transfère un fichier local vers la machine cible (locale ou distante via SFTP).
         Retourne (success, error_message).

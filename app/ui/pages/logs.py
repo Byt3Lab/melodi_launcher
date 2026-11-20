@@ -1,7 +1,8 @@
 """
-LogsPage: Page dédiée aux journaux d'exécution en direct et aux logs journalctl des services.
+LogsPage: Page dédiée aux journaux en direct et aux logs des instances MELODI ERP + PostgreSQL.
 """
 
+import os
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton
 )
@@ -35,10 +36,7 @@ class LogsPage(QWidget):
         header.addStretch()
 
         self.source_combo = QComboBox()
-        self.source_combo.addItem("", userData="live")
-        self.source_combo.addItem("", userData="melodi")
-        self.source_combo.addItem("", userData="postgresql")
-        self.source_combo.setMinimumWidth(230)
+        self.source_combo.setMinimumWidth(250)
         self.source_combo.currentIndexChanged.connect(self._on_source_changed)
         header.addWidget(self.source_combo)
 
@@ -59,25 +57,51 @@ class LogsPage(QWidget):
         layout.addWidget(self.journal_view, stretch=1)
 
         self.ctx.log_emitted.connect(self.live_view.append_line)
+        self.ctx.server_changed.connect(self._rebuild_sources)
+        self.ctx.instances_updated.connect(self._rebuild_sources)
         self.ctx.language_changed.connect(self.retranslate)
+
+        self._rebuild_sources()
         self.retranslate()
+
+    def _rebuild_sources(self, *_) -> None:
+        prev = self.source_combo.currentData() or "live"
+        self.source_combo.blockSignals(True)
+        self.source_combo.clear()
+        self.source_combo.addItem(t("logs.source_live"), userData="live")
+        for inst in self.ctx.instance_manager.get_instances(self.ctx.current_server_id, kind="melodi"):
+            label = f"{inst['name']} (:{inst.get('port', 5000)})"
+            self.source_combo.addItem(t("logs.source_service", name=label), userData=inst["service_name"])
+        pg_list = self.ctx.instance_manager.get_pg_instances(self.ctx.current_server_id)
+        if pg_list:
+            for pg in pg_list:
+                label = f"{pg['name']} (:{pg.get('port', 5432)})"
+                self.source_combo.addItem(t("logs.source_service", name=label), userData=pg["service_name"])
+        else:
+            self.source_combo.addItem(t("logs.source_service", name="postgresql"), userData="postgresql")
+
+        for i in range(self.source_combo.count()):
+            if self.source_combo.itemData(i) == prev:
+                self.source_combo.setCurrentIndex(i)
+                break
+        self.source_combo.blockSignals(False)
 
     def retranslate(self, *_) -> None:
         self.title_lbl.setText(t("logs.title"))
         self.subtitle_lbl.setText(t("logs.subtitle"))
         self.fetch_btn.setText(t("logs.load_journalctl"))
-        self.source_combo.setItemText(0, t("logs.source_live"))
-        self.source_combo.setItemText(1, t("logs.source_service", name="melodi"))
-        self.source_combo.setItemText(2, t("logs.source_service", name="postgresql"))
+        self._rebuild_sources()
         self.live_view.retranslate()
         self.journal_view.retranslate()
 
     def select_service(self, svc_id: str) -> None:
+        self.source_combo.blockSignals(True)
         for i in range(self.source_combo.count()):
             if self.source_combo.itemData(i) == svc_id:
                 self.source_combo.setCurrentIndex(i)
                 break
-        self.fetch_service_logs()
+        self.source_combo.blockSignals(False)
+        self._on_source_changed()
 
     def _on_source_changed(self) -> None:
         src = self.source_combo.currentData()
@@ -97,7 +121,9 @@ class LogsPage(QWidget):
         self.journal_view.clear()
         self.journal_view.append_line(t("logs.loading", service=svc))
         try:
-            lines = await SystemdManager.get_logs(self.ctx.executor, svc, lines=100)
+            inst = self.ctx.instance_manager.get_by_service_name(self.ctx.current_server_id, svc)
+            log_path = os.path.join(inst["install_dir"], "melodi.log") if inst and inst.get("install_dir") else None
+            lines = await SystemdManager.get_logs(self.ctx.executor, svc, lines=100, log_path=log_path)
             for line in lines:
                 self.journal_view.append_line(line)
         except Exception as exc:

@@ -85,6 +85,10 @@ async def test_windows_service_manager_uses_powershell():
     assert stop_res["success"] is True
     assert any("Stop-Service" in c for c in ex.commands)
 
+    del_res = await SystemdManager.delete(ex, "melodi")
+    assert del_res["success"] is True
+    assert any("schtasks /Delete /TN 'MELODI_ERP' /F" in c for c in ex.commands)
+
 
 @pytest.mark.asyncio
 async def test_windows_melodi_installer_flow():

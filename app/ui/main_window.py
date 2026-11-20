@@ -45,6 +45,24 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(self.sidebar)
 
         self.stack = QStackedWidget(self)
+        self.pages = {}
+        self._build_pages()
+        root_layout.addWidget(self.stack, stretch=1)
+
+        self.toast_manager = ToastManager(self)
+
+        # Connexions
+        self.sidebar.page_selected.connect(self._switch_page)
+        self.ctx.navigate_requested.connect(self.sidebar.select_page)
+        self.ctx.server_changed.connect(self._reload_for_server)
+        self.ctx.toast_requested.connect(self.toast_manager.show)
+        self.ctx.theme_changed.connect(self._apply_theme)
+
+        self._apply_theme(self.ctx.theme_name)
+        self._switch_page("dashboard")
+
+    def _build_pages(self) -> None:
+        """Instancie ou réinstancie toutes les pages pour le serveur actif."""
         self.pages = {
             "dashboard": DashboardPage(self.ctx, self),
             "install": InstallWizardPage(self.ctx, self),
@@ -54,19 +72,26 @@ class MainWindow(QMainWindow):
         }
         for page in self.pages.values():
             self.stack.addWidget(page)
-        root_layout.addWidget(self.stack, stretch=1)
-
-        self.toast_manager = ToastManager(self)
-
-        # Connexions
-        self.sidebar.page_selected.connect(self._switch_page)
-        self.ctx.navigate_requested.connect(self.sidebar.select_page)
         self.pages["services"].view_service_logs.connect(self.pages["logs"].select_service)
-        self.ctx.toast_requested.connect(self.toast_manager.show)
-        self.ctx.theme_changed.connect(self._apply_theme)
 
-        self._apply_theme(self.ctx.theme_name)
-        self._switch_page("dashboard")
+    def _reload_for_server(self, _server_id: str) -> None:
+        """Recharge complètement les pages et la barre latérale lors d'un changement de serveur."""
+        current_widget = self.stack.currentWidget()
+        current_key = next(
+            (k for k, w in self.pages.items() if w is current_widget),
+            "dashboard",
+        )
+
+        for page in self.pages.values():
+            if hasattr(page, "timer"):
+                page.timer.stop()
+            self.stack.removeWidget(page)
+            page.deleteLater()
+        self.pages.clear()
+
+        self._build_pages()
+        self.sidebar.refresh_icons()
+        self._switch_page(current_key)
 
     def _switch_page(self, key: str) -> None:
         if key in self.pages:

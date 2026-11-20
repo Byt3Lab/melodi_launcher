@@ -130,7 +130,12 @@ class LocalExecutor(Executor):
             "error": stderr.strip() if code != 0 else (None if sudo_ok else "Sudo requiert un mot de passe non configuré")
         }
 
-    async def upload_file(self, local_path: str, remote_path: str) -> Tuple[bool, str]:
+    async def upload_file(
+        self,
+        local_path: str,
+        remote_path: str,
+        on_progress: Optional[Callable[[int, int], None]] = None
+    ) -> Tuple[bool, str]:
         """Copie un fichier local vers un chemin cible."""
         if not os.path.exists(local_path):
             return False, t("executor.local.file_not_found", path=local_path)

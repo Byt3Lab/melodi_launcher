@@ -132,3 +132,25 @@ def test_servers_json_never_stores_plaintext_passwords(tmp_path):
     assert "SuperSecretSudo456!" not in raw
     data = json.loads(raw)
     assert all("password" not in item and "sudo_password" not in item for item in data)
+
+
+def test_server_change_reloads_all_pages(qtbot, isolated_ctx):
+    res = isolated_ctx.server_manager.add_server({
+        "name": "Remote Test",
+        "host": "10.0.0.50",
+        "port": 22,
+        "username": "root",
+        "auth_method": "key",
+    })
+    remote_id = res["server"]["id"]
+
+    win = MainWindow(ctx=isolated_ctx)
+    qtbot.addWidget(win)
+    win._switch_page("services")
+    old_pages = dict(win.pages)
+
+    isolated_ctx.set_current_server(remote_id)
+
+    for key, old_page in old_pages.items():
+        assert win.pages[key] is not old_page
+    assert win.stack.currentWidget() is win.pages["services"]

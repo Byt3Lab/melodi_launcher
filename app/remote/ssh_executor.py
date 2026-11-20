@@ -42,7 +42,9 @@ class SSHExecutor(Executor):
                     "port": self.port,
                     "username": self.username,
                     "known_hosts": None, # En prod, valider les empreintes
-                    "login_timeout": 10.0
+                    "login_timeout": 10.0,
+                    "keepalive_interval": 15.0,
+                    "keepalive_count_max": 3,
                 }
                 if self.key_path:
                     kwargs["client_keys"] = [self.key_path]
@@ -74,7 +76,15 @@ class SSHExecutor(Executor):
 
     async def is_connected(self) -> bool:
         """Vérifie si le socket SSH est ouvert."""
-        return self._conn is not None
+        if self._conn is None:
+            return False
+        try:
+            if self._conn.is_closed():
+                self._conn = None
+                return False
+        except Exception:
+            pass
+        return True
 
     async def run(
         self,
@@ -205,8 +215,13 @@ class SSHExecutor(Executor):
             "error": stderr.strip() if code != 0 else (None if sudo_ok else "Attention: sudo requiert un mot de passe ou NOPASSWD")
         }
 
-    async def upload_file(self, local_path: str, remote_path: str) -> Tuple[bool, str]:
-        """Transfère un fichier local vers le serveur distant via SFTP."""
+    async def upload_file(
+        self,
+        local_path: str,
+        remote_path: str,
+        on_progress: Optional[Callable[[int, int], None]] = None
+    ) -> Tuple[bool, str]:
+        """Transfère un fichier local vers le serveur distant via SFTP avec pipelining rapide."""
         if not os.path.exists(local_path):
             return False, t("executor.local.file_not_found", path=local_path)
 
@@ -217,13 +232,27 @@ class SSHExecutor(Executor):
 
         try:
             assert self._conn is not None
-            # S'assurer que le répertoire cible distant existe (ex: /tmp)
             dest_dir = os.path.dirname(remote_path)
             if dest_dir and dest_dir not in ["", "/"]:
                 await self.run(f"mkdir -p {shlex.quote(dest_dir)}")
 
-            async with self._conn.start_sftp_client() as sftp:
-                await sftp.put(local_path, remote_path)
+            async def _do_put(b_size: int, m_req: int) -> None:
+                put_kwargs: Dict[str, Any] = {
+                    "block_size": b_size,
+                    "max_requests": m_req,
+                }
+                if on_progress is not None:
+                    put_kwargs["progress_handler"] = lambda _src, _dst, copied, total: on_progress(int(copied), int(total))
+                async with self._conn.start_sftp_client() as sftp:
+                    await sftp.put(local_path, remote_path, **put_kwargs)
+
+            try:
+                await _do_put(65536, 16)
+            except Exception:
+                await self.disconnect()
+                if not await self.connect():
+                    raise
+                await _do_put(32768, 4)
             return True, ""
         except Exception as e:
             return False, f"Erreur de transfert SFTP vers {self.host}: {str(e)}"

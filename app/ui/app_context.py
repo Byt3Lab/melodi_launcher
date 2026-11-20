@@ -5,6 +5,7 @@ AppContext: État partagé de l'application (serveur actif, bus de logs, notific
 from PySide6.QtCore import QObject, Signal, QSettings
 from app import i18n
 from app.core.server_manager import ServerManager
+from app.core.instance_manager import InstanceManager
 from app.remote.executor import Executor
 from app.ui.theme import get_tokens
 
@@ -12,15 +13,22 @@ from app.ui.theme import get_tokens
 class AppContext(QObject):
     server_changed = Signal(str)
     servers_updated = Signal()
+    instances_updated = Signal()
     log_emitted = Signal(str)
     theme_changed = Signal(str)
     language_changed = Signal(str)
     toast_requested = Signal(str, str)  # message, kind (info|success|warning|error)
     navigate_requested = Signal(str)    # page key
 
-    def __init__(self, server_manager: ServerManager | None = None, settings: QSettings | None = None):
+    def __init__(
+        self,
+        server_manager: ServerManager | None = None,
+        settings: QSettings | None = None,
+        instance_manager: InstanceManager | None = None,
+    ):
         super().__init__()
         self.server_manager = server_manager or ServerManager()
+        self.instance_manager = instance_manager or InstanceManager()
         self.settings = settings or QSettings("Byt3lab", "MelodiLauncher")
         self._current_server_id = "local"
 
@@ -38,6 +46,8 @@ class AppContext(QObject):
     def set_current_server(self, server_id: str) -> None:
         if server_id not in [s["id"] for s in self.server_manager.get_all_servers()]:
             server_id = "local"
+        if server_id == self._current_server_id:
+            return
         self._current_server_id = server_id
         self.server_changed.emit(server_id)
 

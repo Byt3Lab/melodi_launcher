@@ -1,5 +1,5 @@
 """
-DashboardPage: Vue d'ensemble du serveur actif (jauges CPU/RAM/Disque/Uptime + résumé services).
+DashboardPage: Vue d'ensemble du serveur actif (jauges + instances MELODI ERP dynamiques + PostgreSQL).
 """
 
 import webbrowser
@@ -18,19 +18,14 @@ from app.ui.widgets.status_pill import StatusPill
 from app.ui.widgets.icon import load_svg_icon
 
 
-DASHBOARD_SERVICES = [
-    ("melodi", "MELODI ERP", 5000),
-    ("postgresql", "PostgreSQL", 5432),
-]
-
-
 class DashboardPage(QWidget):
     def __init__(self, ctx: AppContext, parent=None):
         super().__init__(parent)
         self.ctx = ctx
         self._busy = False
         self._last_metrics: dict | None = None
-        self._service_states: dict[str, str] = {s[0]: "checking" for s in DASHBOARD_SERVICES}
+        self._service_states: dict[str, str] = {}
+        self._service_rows: dict[str, tuple[StatusPill, QPushButton]] = {}
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -65,7 +60,7 @@ class DashboardPage(QWidget):
         self.open_btn = QPushButton()
         self.open_btn.setProperty("variant", "primary")
         self.open_btn.setIcon(load_svg_icon("external-link", "#082f49", 15))
-        self.open_btn.clicked.connect(self._open_browser)
+        self.open_btn.clicked.connect(self._open_first_instance)
         header.addWidget(self.open_btn)
         layout.addLayout(header)
 
@@ -83,7 +78,7 @@ class DashboardPage(QWidget):
         metrics_grid.addWidget(self.uptime_gauge, 0, 3)
         layout.addLayout(metrics_grid)
 
-        # Services Summary Card
+        # Services Summary Card (dynamic)
         srv_card = Card(padding=18)
         srv_header = QHBoxLayout()
         self.srv_title = QLabel()
@@ -96,33 +91,9 @@ class DashboardPage(QWidget):
         srv_header.addWidget(self.manage_btn)
         srv_card.body_layout.addLayout(srv_header)
 
-        self._service_rows: dict[str, tuple[StatusPill, QPushButton]] = {}
-        for svc_id, label, port in DASHBOARD_SERVICES:
-            row = QHBoxLayout()
-            row.setSpacing(12)
-
-            name_lbl = QLabel(label)
-            name_lbl.setStyleSheet("font-weight: 600; font-size: 13px;")
-            port_lbl = QLabel(f":{port}")
-            port_lbl.setObjectName("MutedText")
-
-            pill = StatusPill(t("status.checking"), "muted")
-            pill.setFixedWidth(126)
-
-            action_btn = QPushButton()
-            action_btn.setProperty("variant", "secondary")
-            action_btn.setFixedWidth(104)
-            action_btn.clicked.connect(lambda _=False, s=svc_id: self._toggle_service(s))
-
-            row.addWidget(name_lbl)
-            row.addWidget(port_lbl)
-            row.addStretch()
-            row.addWidget(pill)
-            row.addWidget(action_btn)
-
-            srv_card.body_layout.addLayout(row)
-            self._service_rows[svc_id] = (pill, action_btn)
-
+        self.services_rows_box = QVBoxLayout()
+        self.services_rows_box.setSpacing(10)
+        srv_card.body_layout.addLayout(self.services_rows_box)
         layout.addWidget(srv_card)
 
         # Quick Deploy Banner
@@ -152,11 +123,83 @@ class DashboardPage(QWidget):
         self.timer.setInterval(8000)
         self.timer.timeout.connect(self._on_timer)
 
-        self.ctx.server_changed.connect(lambda _: self.refresh_all())
+        self.ctx.server_changed.connect(self._on_server_or_instances_changed)
+        self.ctx.instances_updated.connect(self._on_server_or_instances_changed)
         self.ctx.theme_changed.connect(lambda _: self._repaint_gauges())
         self.ctx.language_changed.connect(self.retranslate)
 
+        self._rebuild_service_rows()
         self.retranslate()
+
+    def _service_entries(self) -> list[tuple[str, str, int, bool]]:
+        """Retourne [(service_name, display_name, port, is_melodi), ...]."""
+        entries = []
+        for inst in self.ctx.instance_manager.get_instances(self.ctx.current_server_id, kind="melodi"):
+            entries.append((inst["service_name"], inst["name"], int(inst.get("port", 5000)), True))
+        pg_list = self.ctx.instance_manager.get_pg_instances(self.ctx.current_server_id)
+        if pg_list:
+            for pg in pg_list:
+                entries.append((pg["service_name"], pg["name"], int(pg.get("port", 5432)), False))
+        else:
+            entries.append(("postgresql", "PostgreSQL", 5432, False))
+        return entries
+
+    def _rebuild_service_rows(self) -> None:
+        while self.services_rows_box.count():
+            item = self.services_rows_box.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self._service_rows.clear()
+        self._service_states.clear()
+
+        melodi_count = len(self.ctx.instance_manager.get_instances(self.ctx.current_server_id, kind="melodi"))
+        self.open_btn.setEnabled(melodi_count > 0)
+        if melodi_count == 0:
+            empty_lbl = QLabel(t("dashboard.no_melodi_installed"))
+            empty_lbl.setObjectName("MutedText")
+            self.services_rows_box.addWidget(empty_lbl)
+
+        for svc_id, label, port, is_melodi in self._service_entries():
+            row_w = QWidget()
+            row = QHBoxLayout(row_w)
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(10)
+
+            name_lbl = QLabel(label)
+            name_lbl.setStyleSheet("font-weight: 600; font-size: 13px;")
+            port_lbl = QLabel(f":{port}")
+            port_lbl.setObjectName("MutedText")
+
+            pill = StatusPill(t("status.checking"), "muted")
+            pill.setFixedWidth(126)
+
+            action_btn = QPushButton()
+            action_btn.setProperty("variant", "secondary")
+            action_btn.setFixedWidth(104)
+            action_btn.clicked.connect(lambda _=False, s=svc_id: self._toggle_service(s))
+
+            row.addWidget(name_lbl)
+            row.addWidget(port_lbl)
+            row.addStretch()
+            if is_melodi:
+                open_i = QPushButton()
+                open_i.setProperty("variant", "ghost")
+                open_i.setIcon(load_svg_icon("external-link", "#38bdf8", 15))
+                open_i.clicked.connect(lambda _=False, p=port: self._open_port(p))
+                row.addWidget(open_i)
+            row.addWidget(pill)
+            row.addWidget(action_btn)
+
+            self.services_rows_box.addWidget(row_w)
+            self._service_rows[svc_id] = (pill, action_btn)
+            self._service_states[svc_id] = "checking"
+
+        self._render_services()
+
+    def _on_server_or_instances_changed(self, *_) -> None:
+        self._rebuild_service_rows()
+        if self.isVisible():
+            self.refresh_all()
 
     def retranslate(self, *_) -> None:
         self.title_lbl.setText(t("dashboard.title"))
@@ -174,10 +217,12 @@ class DashboardPage(QWidget):
         self.dep_sub.setText(t("dashboard.deploy_desc"))
         self.go_install_btn.setText(t("dashboard.launch_wizard"))
         self._repaint_gauges()
-        self._render_services()
+        self._rebuild_service_rows()
 
     def _render_services(self) -> None:
         for svc_id, state in self._service_states.items():
+            if svc_id not in self._service_rows:
+                continue
             pill, btn = self._service_rows[svc_id]
             if state == "active":
                 pill.set_status(t("status.active"), "success")
@@ -187,8 +232,19 @@ class DashboardPage(QWidget):
                 pill.set_status(t("status.stopped"), "danger")
                 btn.setText(t("common.start"))
                 btn.setProperty("action", "start")
+                btn.setEnabled(True)
+            elif state == "not_installed":
+                pill.set_status(t("status.service_not_created"), "muted")
+                btn.setText(t("services.create_btn"))
+                btn.setProperty("action", "create")
+                btn.setEnabled(False)
             elif state == "running":
                 pill.set_status(t("status.running"), "warning")
+            elif state == "unreachable":
+                pill.set_status(t("status.unreachable"), "warning")
+                btn.setText(t("common.start"))
+                btn.setProperty("action", "start")
+                btn.setEnabled(True)
             else:
                 pill.set_status(t("status.checking"), "muted")
                 btn.setText(t("common.start"))
@@ -206,10 +262,15 @@ class DashboardPage(QWidget):
         if self.isVisible() and not self._busy:
             self.refresh_all()
 
-    def _open_browser(self):
+    def _open_port(self, port: int):
         srv = self.ctx.current_server
         host = srv.get("host", "localhost") if srv.get("type") == "ssh" else "localhost"
-        webbrowser.open(f"http://{host}:5000")
+        webbrowser.open(f"http://{host}:{port}")
+
+    def _open_first_instance(self):
+        insts = self.ctx.instance_manager.get_instances(self.ctx.current_server_id)
+        port = int(insts[0].get("port", 5000)) if insts else 5000
+        self._open_port(port)
 
     def _repaint_gauges(self):
         metrics = self._last_metrics
@@ -256,9 +317,8 @@ class DashboardPage(QWidget):
                 self._last_metrics = metrics
                 self._repaint_gauges()
 
-            for svc_id, _, _ in DASHBOARD_SERVICES:
-                active = await SystemdManager.is_active(executor, svc_id)
-                self._service_states[svc_id] = "active" if active else "stopped"
+            for svc_id in list(self._service_rows.keys()):
+                self._service_states[svc_id] = await SystemdManager.get_status(executor, svc_id)
             self._render_services()
         except Exception as exc:
             self.ctx.emit_log(t("dashboard.refresh_error", error=exc))
@@ -267,6 +327,8 @@ class DashboardPage(QWidget):
 
     @asyncSlot()
     async def _toggle_service(self, svc_id: str):
+        if svc_id not in self._service_rows:
+            return
         _, btn = self._service_rows[svc_id]
         action = btn.property("action") or "start"
         btn.setEnabled(False)

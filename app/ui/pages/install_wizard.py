@@ -3,16 +3,19 @@ InstallWizardPage: Assistant simplifié de déploiement MELODI ERP (100 % centr�
 """
 
 import os
+import re
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QStackedWidget,
     QComboBox, QRadioButton, QLineEdit, QCheckBox, QProgressBar, QFileDialog,
-    QFormLayout
+    QFormLayout, QSpinBox
 )
 from qasync import asyncSlot
 from app.i18n import t
+from app.core.instance_manager import slugify_service_name, slugify_pg_service_name
 from app.core.task_manager import TaskProgress
 from app.installers.melodi import MelodiInstaller
 from app.installers.postgresql import PostgreSQLInstaller
+from app.system.systemd_manager import SystemdManager
 from app.ui.app_context import AppContext
 from app.ui.pages.servers import ServerDialog
 from app.ui.widgets.card import Card
@@ -78,10 +81,12 @@ class InstallWizardPage(QWidget):
 
         self.ctx.servers_updated.connect(self._refresh_target_combo)
         self.ctx.server_changed.connect(self._sync_target_combo)
+        self.ctx.instances_updated.connect(self._suggest_instance_defaults)
         self.ctx.theme_changed.connect(lambda _: self.stepper.set_step(self._step, self.ctx.tokens))
         self.ctx.language_changed.connect(self.retranslate)
 
         self._refresh_target_combo()
+        self._suggest_instance_defaults()
         self.retranslate()
         self._update_step_ui()
 
@@ -176,12 +181,39 @@ class InstallWizardPage(QWidget):
         card.body_layout.addWidget(self.url_edit)
 
         form = QFormLayout()
+        self.instance_name_label = QLabel()
+        self.instance_name_edit = QLineEdit("MELODI ERP")
+        self.instance_name_edit.textChanged.connect(self._on_instance_name_changed)
+        form.addRow(self.instance_name_label, self.instance_name_edit)
+
+        self.service_name_label = QLabel()
+        self.service_name_edit = QLineEdit("melodi")
+        self.service_name_edit.textChanged.connect(self._validate_current_step)
+        form.addRow(self.service_name_label, self.service_name_edit)
+
+        self.port_label = QLabel()
+        self.port_spin = QSpinBox()
+        self.port_spin.setRange(1024, 65535)
+        self.port_spin.setValue(5000)
+        self.port_spin.valueChanged.connect(self._validate_current_step)
+        form.addRow(self.port_label, self.port_spin)
+
         self.dest_label = QLabel()
         default_dir = "C:\\melodi" if os.name == "nt" else "/opt/melodi"
         self.dest_edit = QLineEdit(default_dir)
         self.dest_edit.textChanged.connect(self._validate_current_step)
         form.addRow(self.dest_label, self.dest_edit)
         card.body_layout.addLayout(form)
+
+        avail_row = QHBoxLayout()
+        self.check_avail_btn = QPushButton()
+        self.check_avail_btn.setProperty("variant", "secondary")
+        self.check_avail_btn.clicked.connect(self._on_check_wizard_availability)
+        self.avail_pill = StatusPill(t("status.not_tested"), "muted")
+        avail_row.addWidget(self.check_avail_btn)
+        avail_row.addWidget(self.avail_pill)
+        avail_row.addStretch()
+        card.body_layout.addLayout(avail_row)
 
         self.source_hint = QLabel("")
         self.source_hint.setStyleSheet("color: #f59e0b; font-size: 12px;")
@@ -203,6 +235,20 @@ class InstallWizardPage(QWidget):
 
         self.chk_pg = QCheckBox()
         self.chk_pg.setChecked(True)
+        self.chk_pg.toggled.connect(self._on_pg_toggled)
+
+        pg_port_row = QHBoxLayout()
+        pg_port_row.setContentsMargins(24, 0, 0, 6)
+        self.pg_port_label = QLabel()
+        self.pg_port_spin = QSpinBox()
+        self.pg_port_spin.setRange(1024, 65535)
+        self.pg_port_spin.setValue(5432)
+        self.pg_port_spin.setMaximumWidth(120)
+        pg_port_row.addWidget(self.pg_port_label)
+        pg_port_row.addWidget(self.pg_port_spin)
+        pg_port_row.addStretch()
+        self.pg_port_widget = QWidget()
+        self.pg_port_widget.setLayout(pg_port_row)
 
         self.chk_venv = QCheckBox()
         self.chk_venv.setChecked(True)
@@ -211,6 +257,7 @@ class InstallWizardPage(QWidget):
         self.chk_service.setChecked(True)
 
         card.body_layout.addWidget(self.chk_pg)
+        card.body_layout.addWidget(self.pg_port_widget)
         card.body_layout.addWidget(self.chk_venv)
         card.body_layout.addWidget(self.chk_service)
 
@@ -311,10 +358,17 @@ class InstallWizardPage(QWidget):
         self.folder_browse.setText(t("wizard.source.browse_folder"))
         self.zip_browse.setText(t("wizard.source.browse_zip"))
         self.url_edit.setPlaceholderText(t("wizard.source.url_placeholder"))
+        self.instance_name_label.setText(t("wizard.source.instance_name_label"))
+        self.instance_name_edit.setPlaceholderText(t("wizard.source.instance_name_placeholder"))
+        self.service_name_label.setText(t("services.service_name_label"))
+        self.service_name_edit.setPlaceholderText(t("services.service_name_placeholder"))
+        self.port_label.setText(t("wizard.source.port_label"))
         self.dest_label.setText(t("wizard.source.dest_label"))
+        self.check_avail_btn.setText(t("services.check_availability"))
 
         self.comp_heading.setText(t("wizard.comp.heading"))
         self.chk_pg.setText(t("wizard.comp.pg"))
+        self.pg_port_label.setText(t("wizard.comp.pg_port_label"))
         self.chk_venv.setText(t("wizard.comp.venv"))
         self.chk_service.setText(t("wizard.comp.service"))
 
@@ -358,6 +412,58 @@ class InstallWizardPage(QWidget):
         self.target_combo.blockSignals(False)
         self._target_state = "not_tested"
         self._render_target_pill()
+        self._suggest_instance_defaults()
+
+    def _on_pg_toggled(self, checked: bool):
+        self.pg_port_widget.setVisible(checked)
+
+    def _suggest_instance_defaults(self):
+        next_port = self.ctx.instance_manager.suggest_next_port(self.ctx.current_server_id, 5000, kind="melodi")
+        self.port_spin.setValue(next_port)
+        if next_port > 5000 and self.instance_name_edit.text().strip() == "MELODI ERP":
+            self.instance_name_edit.setText(f"MELODI {next_port}")
+        next_pg_port = self.ctx.instance_manager.suggest_next_port(self.ctx.current_server_id, 5432, kind="postgresql")
+        self.pg_port_spin.setValue(next_pg_port)
+
+    def _on_instance_name_changed(self, text: str):
+        slug = slugify_service_name(text)
+        self.service_name_edit.setText(slug)
+        cur = self.dest_edit.text().strip()
+        if cur.startswith("C:\\") or (os.name == "nt" and not cur.startswith("/")):
+            self.dest_edit.setText(f"C:\\{slug}")
+        else:
+            self.dest_edit.setText(f"/opt/{slug}")
+        self._validate_current_step()
+
+    @asyncSlot()
+    async def _on_check_wizard_availability(self):
+        await self._check_target_availability()
+
+    async def _check_target_availability(self) -> bool:
+        svc = self.service_name_edit.text().strip() or slugify_service_name(self.instance_name_edit.text())
+        port = self.port_spin.value()
+        if not re.match(r"^[a-z0-9][a-z0-9_-]*$", svc):
+            self.avail_pill.set_status(t("status.error"), "danger")
+            self.source_hint.setText(t("services.err_invalid_name"))
+            return False
+
+        self.check_avail_btn.setEnabled(False)
+        self.avail_pill.set_status(t("services.checking_availability"), "warning")
+        try:
+            avail = await SystemdManager.check_availability(self.ctx.executor, svc, port)
+            if not avail["service_available"]:
+                self.avail_pill.set_status(t("status.failed"), "danger")
+                self.source_hint.setText(t("services.err_service_exists", name=svc))
+                return False
+            if not avail["port_available"]:
+                self.avail_pill.set_status(t("status.failed"), "danger")
+                self.source_hint.setText(t("services.err_port_busy", port=port))
+                return False
+            self.avail_pill.set_status(t("services.available_ok"), "success")
+            self.source_hint.setText("")
+            return True
+        finally:
+            self.check_avail_btn.setEnabled(True)
 
     def _on_target_combo_changed(self, idx: int):
         if idx >= 0:
@@ -426,7 +532,15 @@ class InstallWizardPage(QWidget):
 
         if self._step == 1:
             dest = self.dest_edit.text().strip()
-            if not dest:
+            svc = self.service_name_edit.text().strip() or slugify_service_name(self.instance_name_edit.text())
+            port = self.port_spin.value()
+            if not re.match(r"^[a-z0-9][a-z0-9_-]*$", svc):
+                self.source_hint.setText(t("services.err_invalid_name"))
+                valid = False
+            elif self.ctx.instance_manager.is_port_used(self.ctx.current_server_id, port, exclude_service_name=svc):
+                self.source_hint.setText(t("wizard.source.hint_port_used", port=port))
+                valid = False
+            elif not dest:
                 self.source_hint.setText(t("wizard.source.hint_dest"))
                 valid = False
             elif self.rb_folder.isChecked():
@@ -473,7 +587,7 @@ class InstallWizardPage(QWidget):
 
         opts = ["MELODI ERP"]
         if self.chk_pg.isChecked():
-            opts.append("PostgreSQL")
+            opts.append(f"PostgreSQL (:{self.pg_port_spin.value()})")
         if self.chk_venv.isChecked():
             opts.append(t("wizard.summary.opt_venv"))
         if self.chk_service.isChecked():
@@ -483,8 +597,10 @@ class InstallWizardPage(QWidget):
 
         self.summary_label.setText(
             t(
-                "wizard.summary.body",
+                "wizard.summary.body_multi",
                 target=target_txt,
+                instance=self.instance_name_edit.text().strip() or "MELODI ERP",
+                port=self.port_spin.value(),
                 source=src_txt,
                 dest=self.dest_edit.text().strip() or "/opt/melodi",
                 components=", ".join(opts),
@@ -499,6 +615,15 @@ class InstallWizardPage(QWidget):
     def _go_next(self):
         if not self._validate_current_step():
             return
+        if self._step == 1:
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    self._go_next_after_check()
+                    return
+            except RuntimeError:
+                pass
         if self._step < 3:
             self._step += 1
             self._update_step_ui()
@@ -506,6 +631,12 @@ class InstallWizardPage(QWidget):
             self._step = 4
             self._update_step_ui()
             self._start_installation()
+
+    @asyncSlot()
+    async def _go_next_after_check(self):
+        if await self._check_target_availability():
+            self._step += 1
+            self._update_step_ui()
 
     def _cancel_install(self):
         if self._current_task:
@@ -566,23 +697,51 @@ class InstallWizardPage(QWidget):
                     raise RuntimeError(t("wizard.err.conn_failed", name=executor.name))
             self.checklist.set_state("connect", "success")
 
+            pg_port = self.pg_port_spin.value()
+            pg_svc_name = slugify_pg_service_name(pg_port)
             if self.chk_pg.isChecked():
                 self.checklist.set_state("pg", "running")
-                await PostgreSQLInstaller().install(executor, task)
+                pg_data_dir = (
+                    f"C:\\postgresql-{pg_port}\\data"
+                    if await executor.is_windows()
+                    else (f"/var/lib/postgresql/melodi-{pg_port}" if pg_port != 5432 else "/var/lib/postgresql")
+                )
+                await PostgreSQLInstaller().install(
+                    executor,
+                    task,
+                    port=pg_port,
+                    service_name=pg_svc_name,
+                    data_dir=pg_data_dir,
+                )
                 if task.is_failed():
                     self.checklist.set_state("pg", "error")
                     raise RuntimeError(task.error or t("wizard.err.pg_failed"))
+                self.ctx.instance_manager.add_or_update_instance(
+                    server_id=self.ctx.current_server_id,
+                    name=f"PostgreSQL {pg_port}",
+                    port=pg_port,
+                    install_dir=pg_data_dir,
+                    service_name=pg_svc_name,
+                    kind="postgresql",
+                )
                 self.checklist.set_state("pg", "success")
 
             self.checklist.set_state("melodi", "running")
             is_win = await executor.is_windows()
-            default_dest = "C:\\melodi" if is_win else "/opt/melodi"
+            inst_name = self.instance_name_edit.text().strip() or "MELODI ERP"
+            svc_name = self.service_name_edit.text().strip() or slugify_service_name(inst_name)
+            port = self.port_spin.value()
+            default_dest = f"C:\\{svc_name}" if is_win else f"/opt/{svc_name}"
             dest_dir = self.dest_edit.text().strip() or default_dest
             setup_venv = self.chk_venv.isChecked()
             setup_service = self.chk_service.isChecked()
 
             kwargs = {
                 "destination_dir": dest_dir,
+                "service_name": svc_name,
+                "port": port,
+                "pg_service_name": pg_svc_name,
+                "pg_port": pg_port,
                 "setup_venv": setup_venv,
                 "setup_service": setup_service,
                 "deploy_only": not setup_venv and not setup_service,
@@ -616,6 +775,18 @@ class InstallWizardPage(QWidget):
                 self.checklist.set_state("melodi", "error")
                 raise RuntimeError(task.error or t("wizard.err.melodi_failed"))
             self.checklist.set_state("melodi", "success")
+
+            self.ctx.instance_manager.add_or_update_instance(
+                server_id=self.ctx.current_server_id,
+                name=inst_name,
+                port=port,
+                install_dir=dest_dir,
+                service_name=svc_name,
+                kind="melodi",
+                pg_port=pg_port if self.chk_pg.isChecked() else None,
+                pg_service_name=pg_svc_name if self.chk_pg.isChecked() else None,
+            )
+            self.ctx.instances_updated.emit()
 
             self.progress_bar.setValue(100)
             self.progress_pct.setText("100%")

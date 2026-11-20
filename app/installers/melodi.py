@@ -11,6 +11,7 @@ import shutil
 import tempfile
 import zipfile
 from typing import Optional
+from app.core.instance_manager import win_task_name_for_service
 from app.i18n import t
 from app.installers.base import BaseInstaller
 from app.remote.executor import Executor
@@ -18,22 +19,75 @@ from app.core.task_manager import TaskProgress
 from app.system.package_manager import PackageManager
 
 SYSTEMD_UNIT_TEMPLATE = """[Unit]
-Description=MELODI ERP Application Service
-After=network.target postgresql.service
+Description=MELODI ERP Application Service ({service_name})
+After=network.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/melodi
-ExecStart=/opt/melodi/venv/bin/python3 main.py
+WorkingDirectory={app_dir}
+Environment="PYTHONUNBUFFERED=1"
+Environment="PYTHONDONTWRITEBYTECODE=1"
+Environment="PORT={port}"
+Environment="MELODI_PORT={port}"
+Environment="PGPORT={pg_port}"
+ExecStart={python_bin} -m scripts.start --plateform {plateform} --env {env} --port {port} --service_name {service_name} --host {host}
 Restart=always
 RestartSec=5
-StandardOutput=append:/var/log/melodi.log
-StandardError=append:/var/log/melodi.log
+StandardOutput=append:/var/log/{service_name}.log
+StandardError=append:/var/log/{service_name}.log
 
 [Install]
 WantedBy=multi-user.target
 """
+
+
+def _build_windows_bat_command(
+    app_dir: str,
+    python_exe: str,
+    bat_path: str,
+    port: int,
+    service_name: str,
+    pg_port: Optional[int] = None,
+    plateform: str = "windows",
+    env: str = "prod",
+    host: str = "0.0.0.0",
+) -> str:
+    """Construit la commande PowerShell générant le script de démarrage Windows."""
+    pg_env = f"\nset PGPORT={pg_port}" if pg_port is not None else ""
+    start_args = (
+        f"-m scripts.start --plateform {plateform} --env {env} "
+        f"--port {port} --service_name {service_name} --host {host}"
+    )
+    return (
+        f'powershell -NoProfile -Command "'
+        f"$content = @'\n@echo off\ncd /d \"{app_dir}\"\n"
+        f"set PYTHONUNBUFFERED=1\nset PYTHONDONTWRITEBYTECODE=1\n"
+        f"set PORT={port}\nset MELODI_PORT={port}{pg_env}\n"
+        f'"{python_exe}" {start_args} >> "{app_dir}\\melodi.log" 2>&1\n\'@; '
+        f"Set-Content -Path '{bat_path}' -Value $content -Encoding ASCII\""
+    )
+
+
+EXCLUDED_DIRS = {
+    "venv", ".venv", ".git", "node_modules", "__pycache__",
+    ".pytest_cache", "build", "dist", ".mypy_cache", ".ruff_cache",
+}
+EXCLUDED_EXTS = {".pyc", ".pyo"}
+
+
+def _pack_source_zip_sync(source_dir: str, zip_path: str) -> int:
+    """Compresse le dossier source en excluant venv/.git/node_modules/__pycache__ (compression rapide)."""
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=1) as zf:
+        for root, dirs, files in os.walk(source_dir):
+            dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
+            for fname in files:
+                if os.path.splitext(fname)[1].lower() in EXCLUDED_EXTS:
+                    continue
+                full_path = os.path.join(root, fname)
+                rel_path = os.path.relpath(full_path, source_dir)
+                zf.write(full_path, rel_path)
+    return os.path.getsize(zip_path)
 
 
 class MelodiInstaller(BaseInstaller):
@@ -95,15 +149,33 @@ class MelodiInstaller(BaseInstaller):
             task.append_log(t("installer.melodi.copy_ok"))
             return destination_dir
 
-        # Serveur distant SSH : compression temporaire + SFTP + extraction
+        # Serveur distant SSH : compression rapide (exclusions venv/.git/node_modules) + SFTP pipelining
         task.update(18, t("wizard.packing_folder"))
         tmp_dir = tempfile.mkdtemp(prefix="melodi_pack_")
         try:
-            archive_base = os.path.join(tmp_dir, "melodi_source")
-            local_zip = shutil.make_archive(archive_base, "zip", root_dir=source_dir)
+            local_zip = os.path.join(tmp_dir, "melodi_source.zip")
+            size_bytes = await asyncio.to_thread(_pack_source_zip_sync, source_dir, local_zip)
+            size_mb = round(size_bytes / (1024 * 1024), 2)
+            task.append_log(f"✓ Archive: {size_mb} Mo (venv/.git/node_modules exclus)")
             task.update(25, t("wizard.uploading_zip"))
             remote_zip = "C:\\Windows\\Temp\\melodi_source_upload.zip" if is_win else "/tmp/melodi_source_upload.zip"
-            ok_up, err_up = await executor.upload_file(local_zip, remote_zip)
+
+            last_pct = [-1]
+
+            def _on_upload_progress(copied: int, total: int):
+                if total <= 0:
+                    return
+                pct = int(copied * 100 / total)
+                if pct >= last_pct[0] + 10 or pct == 100:
+                    last_pct[0] = pct
+                    mb_c = copied / (1024 * 1024)
+                    mb_t = total / (1024 * 1024)
+                    task.update(25 + int(pct * 0.2), f"{t('wizard.uploading_zip')} ({mb_c:.1f} / {mb_t:.1f} Mo - {pct}%)")
+
+            try:
+                ok_up, err_up = await executor.upload_file(local_zip, remote_zip, on_progress=_on_upload_progress)
+            except TypeError:
+                ok_up, err_up = await executor.upload_file(local_zip, remote_zip)
             if not ok_up:
                 task.fail(t("wizard.err.upload", error=err_up))
                 return None
@@ -296,7 +368,9 @@ class MelodiInstaller(BaseInstaller):
         setup_venv = kwargs.get("setup_venv", True)
         setup_service = kwargs.get("setup_service", True)
         on_step_done = kwargs.get("on_step_done")
-        app_dir = kwargs.get("destination_dir") or kwargs.get("target_dir") or "C:\\melodi"
+        service_name = kwargs.get("service_name") or "melodi"
+        port = int(kwargs.get("port") or 5000)
+        app_dir = kwargs.get("destination_dir") or kwargs.get("target_dir") or f"C:\\{service_name}"
 
         task.update(10, t("installer.melodi.checking_deps"))
         py_code, _, _ = await executor.run("python --version")
@@ -346,16 +420,19 @@ class MelodiInstaller(BaseInstaller):
             task.update(85, t("installer.melodi.configuring_systemd"))
             python_exe = f"{app_dir}\\venv\\Scripts\\python.exe" if setup_venv else "python"
             bat_path = f"{app_dir}\\start_melodi.bat"
-            bat_ps = (
-                f'powershell -NoProfile -Command "'
-                f"$content = @'\n@echo off\ncd /d \"{app_dir}\"\n\"{python_exe}\" main.py >> \"{app_dir}\\melodi.log\" 2>&1\n'@; "
-                f"Set-Content -Path '{bat_path}' -Value $content -Encoding ASCII\""
+            task_name = win_task_name_for_service(service_name)
+            bat_ps = _build_windows_bat_command(
+                app_dir=app_dir,
+                python_exe=python_exe,
+                bat_path=bat_path,
+                port=port,
+                service_name=service_name,
             )
             await executor.run(bat_ps, on_output=task.append_log)
 
             task.update(92, t("installer.melodi.starting_service"))
             reg_cmd = (
-                f'schtasks /Create /TN "MELODI_ERP" /TR "\\"{bat_path}\\"" '
+                f'schtasks /Create /TN "{task_name}" /TR "\\"{bat_path}\\"" '
                 f'/SC ONSTART /RL HIGHEST /F'
             )
             code, _, stderr = await executor.run(reg_cmd, on_output=task.append_log)
@@ -364,7 +441,7 @@ class MelodiInstaller(BaseInstaller):
                     on_step_done("service", "error")
                 task.fail(t("installer.melodi.systemd_failed", error=stderr))
                 return
-            await executor.run('powershell -NoProfile -Command "Start-ScheduledTask -TaskName \'MELODI_ERP\'"', on_output=task.append_log)
+            await executor.run(f'powershell -NoProfile -Command "Start-ScheduledTask -TaskName \'{task_name}\'"', on_output=task.append_log)
             if callable(on_step_done):
                 on_step_done("service", "success")
 
@@ -374,14 +451,18 @@ class MelodiInstaller(BaseInstaller):
         setup_venv = kwargs.get("setup_venv", True)
         setup_service = kwargs.get("setup_service", True)
         on_step_done = kwargs.get("on_step_done")
+        service_name = kwargs.get("service_name") or "melodi"
+        port = int(kwargs.get("port") or 5000)
 
         task.update(10, t("installer.melodi.checking_deps"))
-        deps_res = await PackageManager.install(executor, "python3 python3-venv unzip curl wget git", on_output=task.append_log)
-        if not deps_res["success"]:
-            task.fail(t("installer.melodi.deps_failed", error=deps_res.get("stderr", "")))
-            return
+        check_code, _, _ = await executor.run("which python3 unzip curl wget git && python3 -m venv --help >/dev/null 2>&1")
+        if check_code != 0:
+            deps_res = await PackageManager.install(executor, "python3 python3-venv unzip curl wget git", on_output=task.append_log)
+            if not deps_res["success"]:
+                task.fail(t("installer.melodi.deps_failed", error=deps_res.get("stderr", "")))
+                return
 
-        app_dir = kwargs.get("destination_dir") or kwargs.get("target_dir") or "/opt/melodi"
+        app_dir = kwargs.get("destination_dir") or kwargs.get("target_dir") or f"/opt/{service_name}"
         if kwargs.get("source_dir"):
             deployed_dir = await self.deploy_source_folder(executor, task, kwargs["source_dir"], app_dir)
             if not deployed_dir or task.is_failed():
@@ -427,24 +508,94 @@ class MelodiInstaller(BaseInstaller):
             if callable(on_step_done):
                 on_step_done("service", "running")
             task.update(85, t("installer.melodi.configuring_systemd"))
-            python_bin = f"{app_dir}/venv/bin/python3" if setup_venv else "/usr/bin/python3"
-            unit_content = (
-                SYSTEMD_UNIT_TEMPLATE
-                .replace("/opt/melodi/venv/bin/python3 main.py", f"{python_bin} main.py")
-                .replace("WorkingDirectory=/opt/melodi", f"WorkingDirectory={app_dir}")
+            pg_service_name = kwargs.get("pg_service_name") or "postgresql"
+            pg_port = int(kwargs.get("pg_port") or 5432)
+            ok, err = await MelodiInstaller.create_service(
+                executor,
+                service_name=service_name,
+                app_dir=app_dir,
+                port=port,
+                use_venv=setup_venv,
+                pg_service_name=pg_service_name,
+                pg_port=pg_port,
+                on_output=task.append_log,
             )
-            escaped_unit = unit_content.replace('"', '\\"')
-            cmd = f'echo "{escaped_unit}" | tee /etc/systemd/system/melodi.service > /dev/null'
-            code, _, stderr = await executor.run_sudo(cmd, on_output=task.append_log)
-            if code != 0:
+            if not ok:
                 if callable(on_step_done):
                     on_step_done("service", "error")
-                task.fail(t("installer.melodi.systemd_failed", error=stderr))
+                task.fail(t("installer.melodi.systemd_failed", error=err))
                 return
-
-            task.update(92, t("installer.melodi.starting_service"))
-            await executor.run_sudo("systemctl daemon-reload && systemctl enable --now melodi", on_output=task.append_log)
             if callable(on_step_done):
                 on_step_done("service", "success")
 
         task.complete(t("installer.melodi.done", path=app_dir))
+
+    @staticmethod
+    async def create_service(
+        executor: Executor,
+        service_name: str,
+        app_dir: str,
+        port: int = 5000,
+        use_venv: Optional[bool] = None,
+        pg_service_name: str = "postgresql",
+        pg_port: int = 5432,
+        plateform: Optional[str] = None,
+        env: str = "prod",
+        host: str = "0.0.0.0",
+        on_output=None,
+    ) -> tuple[bool, str]:
+        """Crée ou recrée et démarre le service système à partir d'un dossier source installé."""
+        if await executor.is_windows():
+            if use_venv is None:
+                c_v, o_v, _ = await executor.run(f'powershell -NoProfile -Command "Test-Path \'{app_dir}\\venv\\Scripts\\python.exe\'"')
+                use_venv = c_v == 0 and o_v.strip().lower() == "true"
+            python_exe = f"{app_dir}\\venv\\Scripts\\python.exe" if use_venv else "python"
+            bat_path = f"{app_dir}\\start_melodi.bat"
+            task_name = win_task_name_for_service(service_name)
+            bat_ps = _build_windows_bat_command(
+                app_dir=app_dir,
+                python_exe=python_exe,
+                bat_path=bat_path,
+                port=port,
+                service_name=service_name,
+                pg_port=pg_port,
+                plateform=plateform or "windows",
+                env=env,
+                host=host,
+            )
+            await executor.run(bat_ps, on_output=on_output)
+            reg_cmd = (
+                f'schtasks /Create /TN "{task_name}" /TR "\\"{bat_path}\\"" '
+                f'/SC ONSTART /RL HIGHEST /F'
+            )
+            code, _, stderr = await executor.run(reg_cmd, on_output=on_output)
+            if code != 0:
+                return False, stderr.strip()
+            await executor.run(f'powershell -NoProfile -Command "Start-ScheduledTask -TaskName \'{task_name}\'"', on_output=on_output)
+            return True, ""
+
+        if use_venv is None:
+            c_v, _, _ = await executor.run(f"test -x {shlex.quote(app_dir)}/venv/bin/python3")
+            use_venv = c_v == 0
+        python_bin = f"{app_dir}/venv/bin/python3" if use_venv else "/usr/bin/python3"
+        unit_content = SYSTEMD_UNIT_TEMPLATE.format(
+            service_name=service_name,
+            pg_service_name=pg_service_name,
+            app_dir=app_dir,
+            port=port,
+            pg_port=pg_port,
+            python_bin=python_bin,
+            plateform=plateform or "linux",
+            env=env,
+            host=host,
+        )
+        escaped_unit = unit_content.replace('"', '\\"')
+        cmd = f'echo "{escaped_unit}" | tee /etc/systemd/system/{shlex.quote(service_name)}.service > /dev/null'
+        code, _, stderr = await executor.run_sudo(cmd, on_output=on_output)
+        if code != 0:
+            return False, stderr.strip()
+        code2, _, stderr2 = await executor.run_sudo(
+            f"systemctl daemon-reload && systemctl enable --now {shlex.quote(service_name)}",
+            on_output=on_output,
+        )
+        return code2 == 0, stderr2.strip()
